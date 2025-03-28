@@ -1,0 +1,155 @@
+.drag-drop-container {
+  margin: 20px 0;
+  
+  .drag-tip {
+    margin-bottom: 20px;
+    
+    ul {
+      margin-bottom: 0;
+      padding-left: 20px;
+    }
+    
+    b {
+      color: #1890ff;
+    }
+  }
+  
+  .tour-boxes {
+    display: flex;
+    gap: 20px;
+    
+    @media (max-width: 1200px) {
+      flex-direction: column;
+    }
+    
+    .tour-box {
+      flex: 1;
+      min-height: 400px;
+      
+      &.left-box {
+        min-width: 300px;
+        max-width: 400px;
+        
+        @media (max-width: 1200px) {
+          max-width: 100%;
+        }
+      }
+      
+      &.right-box {
+        flex: 2;
+      }
+      
+      .tour-card {
+        height: 100%;
+        
+        .tour-list-header {
+          margin-bottom: 10px;
+        }
+      }
+    }
+  }
+  
+  .available-tours-list {
+    height: 500px;
+    overflow-y: auto;
+    border: 1px dashed #e8e8e8;
+    border-radius: 2px;
+    padding: 8px;
+    background: #fafafa;
+    
+    &.dragging-over {
+      border-color: #1890ff;
+      background-color: #e6f7ff;
+    }
+  }
+  
+  .selected-tours-list {
+    min-height: 150px;
+    border: 1px dashed #e8e8e8;
+    border-radius: 2px;
+    padding: 8px;
+    background: #fafafa;
+    
+    &.dragging-over {
+      border-color: #1890ff;
+      background-color: #e6f7ff;
+    }
+  }
+  
+  .day-boxes {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-height: 600px;
+    overflow-y: auto;
+    
+    .day-card {
+      border: 1px solid #f0f0f0;
+      
+      .ant-card-head {
+        background: #f5f5f5;
+        padding: 0 12px;
+        
+        .ant-card-head-title {
+          padding: 8px 0;
+        }
+      }
+      
+      .ant-card-body {
+        padding: 12px;
+      }
+    }
+  }
+  
+  .draggable-tour-item {
+    margin-bottom: 8px;
+    cursor: grab;
+    
+    &.dragging {
+      cursor: grabbing;
+    }
+    
+    &.optional-tour {
+      .tour-card {
+        border-left: 4px solid #fa8c16;
+      }
+    }
+    
+    .tour-card {
+      width: 100%;
+      
+      .ant-card-body {
+        padding: 12px;
+        display: flex;
+        justify-content: space-between;
+      }
+      
+      .tour-info {
+        flex: 1;
+        
+        .tour-title {
+          margin-bottom: 8px;
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        
+        .tour-details {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+      }
+      
+      .tour-actions {
+        display: flex;
+        align-items: flex-start;
+      }
+    }
+  }
+  
+  .ant-empty {
+    margin: 24px 0;
+  }
+} 

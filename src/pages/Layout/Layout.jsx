@@ -1,23 +1,33 @@
-import React from "react";
+import React, { useState } from "react";
 import "./Layout.scss";
 import Sidebar from "./components/SideBar/Sidebar";
 import AppMain from "./components/AppMain";
-import { useSelector } from "react-redux";
 import NavBar from "./components/NavBar/NavBar";
-import "./Layout.scss";
+import { Layout as AntLayout, FloatButton } from "antd";
+import { GlobalOutlined } from "@ant-design/icons";
+
 const Layout = () => {
-  const { sidebar } = useSelector((state) => state.app);
+  const [collapsed, setCollapsed] = useState(false);
+
+  const toggleCollapsed = () => {
+    setCollapsed(!collapsed);
+  };
+
   return (
-    <div className= {`classObj app-wrapper ${sidebar.opened ? 'hideSidebar':''}`}>
+    <div className={`app-wrapper ${collapsed ? 'hideSidebar' : ''}`}>
       <div
-        className={sidebar.opened ? "drawer-bg" : ""}
-        // onClick={handleClickOutside}
+        className={collapsed ? "drawer-bg" : ""}
+        onClick={() => collapsed && toggleCollapsed()}
       />
-      <Sidebar class="sidebar-container" />
+      <Sidebar collapsed={collapsed} />
       <div className='main-container'>
-        <NavBar />
+        <NavBar collapsed={collapsed} toggle={toggleCollapsed} />
         <AppMain />
       </div>
+      <FloatButton.BackTop 
+        visibilityHeight={100}
+        icon={<GlobalOutlined />}
+      />
     </div>
   );
 };

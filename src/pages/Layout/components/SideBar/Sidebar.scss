@@ -1,25 +1,108 @@
-.sidebar-container{
+.sidebar-container {
   position: fixed;
-  top: 50px;
+  top: 0;
   bottom: 0;
   left: 0;
+  z-index: 1001;
   
+  .logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 64px;
+    padding: 0 16px;
+    overflow: hidden;
+    transition: all 0.3s;
+    border-bottom: 1px solid #f0f0f0;
+
+    img {
+      height: 36px;
+      width: auto;
+    }
+  }
   
-  .sidebar-Menu{
-    height: 100%;
+  .sidebar-Menu {
+    height: calc(100% - 64px);
+    overflow-y: auto;
+    
     .ant-menu {
       height: 100%;
-      text-align: center;
-      background-color:var(--grey-color);
-      li{
-        line-height: 60px;
-        height: 60px;
+      border-right: none;
+      
+      &.ant-menu-inline-collapsed {
+        width: 80px;
       }
-      .ant-menu-item-selected{
-        background-color: var(--brown-color);
-        color: var(--dark-color);
+      
+      .ant-menu-item, .ant-menu-submenu-title {
+        height: 50px;
+        line-height: 50px;
+        margin: 0;
+        padding: 0 16px 0 24px !important;
+        
+        &:hover {
+          background-color: #f6f8fa;
+        }
+      }
+      
+      .ant-menu-item {
+        &.ant-menu-item-selected {
+          background-color: rgba(24, 144, 255, 0.1);
+          color: #1890ff;
+          font-weight: 500;
+          
+          &::after {
+            opacity: 1;
+            transform: scaleY(1);
+            border-right: 3px solid #1890ff;
+          }
+        }
+      }
+      
+      .ant-menu-submenu-title {
+        .ant-menu-submenu-arrow {
+          color: rgba(0, 0, 0, 0.45);
+        }
+      }
+      
+      .ant-menu-submenu-open {
+        .ant-menu-submenu-arrow {
+          color: #1890ff;
+        }
+      }
+      
+      .ant-menu-submenu-selected {
+        color: #1890ff;
+      }
+      
+      .ant-menu-sub {
+        background-color: #fafbfc;
+        
+        .ant-menu-item {
+          padding-left: 58px !important;
+          height: 40px;
+          line-height: 40px;
+        }
+      }
+      
+      .anticon {
+        margin-right: 12px;
       }
     }
+  }
+  
+  // 自定义滚动条
+  .sidebar-Menu::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .sidebar-Menu::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
+  }
+  
+  .sidebar-Menu::-webkit-scrollbar-track {
+    background-color: transparent;
   }
 }
 

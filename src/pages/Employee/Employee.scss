@@ -35,3 +35,192 @@
   }
   
 }
+
+.employee-container {
+  padding: 24px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  
+  .employee-card {
+    border-radius: 8px;
+    overflow: hidden;
+    
+    .ant-card-head {
+      border-bottom: 1px solid #f0f0f0;
+      
+      .ant-card-head-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1890ff;
+      }
+    }
+  }
+  
+  .search-container {
+    margin-bottom: 16px;
+    
+    .ant-input-affix-wrapper {
+      border-radius: 4px;
+      
+      .anticon {
+        color: rgba(0, 0, 0, 0.45);
+      }
+    }
+    
+    .ant-select {
+      width: 100%;
+    }
+    
+    .ant-btn {
+      border-radius: 4px;
+      height: 32px;
+      
+      &:not(:last-child) {
+        margin-right: 8px;
+      }
+    }
+  }
+  
+  .operation-container {
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    
+    .ant-btn {
+      display: flex;
+      align-items: center;
+      border-radius: 4px;
+      
+      .anticon {
+        font-size: 14px;
+      }
+    }
+  }
+  
+  .ant-table-wrapper {
+    margin-top: 16px;
+    
+    .ant-table {
+      border-radius: 8px;
+      overflow: hidden;
+      
+      .ant-table-thead > tr > th {
+        background-color: #fafafa;
+        font-weight: 600;
+        color: rgba(0, 0, 0, 0.85);
+      }
+      
+      .ant-table-tbody > tr > td {
+        transition: background 0.3s;
+      }
+      
+      .ant-table-tbody > tr:hover > td {
+        background-color: #f5f5f5;
+      }
+    }
+    
+    .ant-pagination {
+      margin-top: 16px;
+      
+      .ant-pagination-item-active {
+        border-color: #1890ff;
+        
+        a {
+          color: #1890ff;
+        }
+      }
+    }
+  }
+  
+  .employee-name {
+    display: flex;
+    align-items: center;
+    
+    .employee-name-text {
+      margin-right: 8px;
+      font-weight: 500;
+    }
+  }
+  
+  // 响应式布局
+  @media (max-width: 768px) {
+    padding: 16px;
+    
+    .operation-container {
+      flex-direction: column;
+      align-items: flex-start;
+      
+      .ant-btn {
+        margin-bottom: 12px;
+      }
+    }
+    
+    .search-container {
+      .ant-space {
+        display: flex;
+        width: 100%;
+        
+        .ant-btn {
+          flex: 1;
+        }
+      }
+    }
+    
+    .ant-table {
+      font-size: 13px;
+      
+      .ant-table-thead > tr > th,
+      .ant-table-tbody > tr > td {
+        padding: 8px 12px;
+      }
+    }
+  }
+}
+
+/* 紧凑的车辆分配弹窗样式 */
+.assign-vehicle-modal {
+  .ant-modal-content {
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    background-color: white;
+    overflow: hidden;
+    
+    .ant-modal-header {
+      padding: 12px 16px 8px;
+      border-bottom: none;
+      background-color: white;
+    }
+    
+    .ant-modal-body {
+      padding: 8px 16px 16px;
+      background-color: white;
+    }
+    
+    .ant-modal-footer {
+      border-top: 1px solid #f0f0f0;
+      padding: 8px 16px;
+      display: flex;
+      justify-content: flex-end;
+      background-color: white;
+      margin-top: 0;
+      height: auto;
+      visibility: visible;
+      
+      .ant-btn {
+        border-radius: 2px;
+        font-size: 13px;
+        height: 28px;
+        padding: 0 12px;
+        margin-left: 8px;
+        visibility: visible;
+      }
+
+      .ant-btn-primary {
+        background-color: #1890ff;
+        border-color: #1890ff;
+      }
+    }
+  }
+}

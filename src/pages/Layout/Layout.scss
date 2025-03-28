@@ -2,60 +2,112 @@
   position: relative;
   height: 100%;
   width: 100%;
-  overflow-x: auto;
-  overflow-y: auto;
-  background-color: var(--grey-color);;
+  overflow-x: hidden;
+  background-color: #f5f8fa;
   .appmain{
-    background-color: var(--light-grey-color);
-    min-height: 900px;
-    padding-top: 30px;
+    background-color: #f5f8fa;
+    min-height: calc(100vh - 64px);
+    padding: 24px;
   }
 }
 .layout-content{
-  min-height: 700px;
+  min-height: calc(100vh - 120px);
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  padding: 24px;
 }
 .sidebar-container{
-  width: 250px;
+  width: 220px;
   height: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1001;
+  background-color: #fff;
+  box-shadow: 1px 0 6px rgba(0, 0, 0, 0.07);
+  transition: all 0.3s;
   .ant-menu {
     overflow-y: auto;
+    height: calc(100% - 64px);
+    border-right: none;
   }
   .sidebar-logo-mini{
-    height: 50px;
-    vertical-align: auto;
-    text-align: center;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
     img{
-      padding-top: 10px;
-      margin: auto;
-      width: 100px;
-      height: 50px;
+      height: 40px;
+      width: auto;
     }
   }
   .sidebar-logo{
-    height: 50px;
-    text-align: center;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
     img{
-      padding-top: 10px;
-      margin: auto;
-      width: 40px;
-      height: 50px;
+      height: 40px;
+      width: auto;
     }
   }
 }
 .main-container {
   position: relative;
   min-height: 100%;
-  transition: margin-left 0.28s;
-  margin-left: 250px;
+  transition: margin-left 0.3s;
+  margin-left: 220px;
 }
 
 .hideSidebar {
   .main-container{
     margin-left: 80px;
-    transition: var(--transition);
+    transition: all 0.3s;
   }
   .sidebar-container{
     width: 80px;
-    transition: var(--transition);
+    transition: all 0.3s;
+  }
+}
+
+.drawer-bg {
+  background: #000;
+  opacity: 0.3;
+  width: 100%;
+  top: 0;
+  height: 100%;
+  position: absolute;
+  z-index: 999;
+}
+
+// 添加菜单激活状态样式
+.ant-menu-item-selected {
+  background-color: rgba(24, 144, 255, 0.1) !important;
+  color: #1890ff !important;
+  border-right: 3px solid #1890ff !important;
+}
+
+// 响应式设计
+@media (max-width: 768px) {
+  .app-wrapper {
+    .sidebar-container {
+      transform: translateX(-220px);
+    }
+    
+    .main-container {
+      margin-left: 0;
+    }
+    
+    &.hideSidebar {
+      .sidebar-container {
+        transform: translateX(0);
+        width: 220px;
+      }
+    }
   }
 }

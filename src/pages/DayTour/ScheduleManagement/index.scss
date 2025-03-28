@@ -1,0 +1,36 @@
+.schedule-management {
+  padding: 20px;
+
+  .ant-card {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .ant-card-head {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 0 24px;
+  }
+
+  .ant-table {
+    margin-top: 10px;
+  }
+
+  .ant-form-item-label > label {
+    font-weight: 500;
+  }
+
+  .ant-select {
+    width: 100%;
+  }
+
+  .ant-input-number {
+    width: 100%;
+  }
+
+  .ant-picker {
+    width: 100%;
+  }
+
+  .ant-picker-range {
+    width: 100%;
+  }
+} 

@@ -1,0 +1,101 @@
+import request from "@/utils/request";
+
+/**
+ * 分页查询车辆信息
+ * @param {Object} params - 查询参数
+ * @returns {Promise} - 返回车辆分页数据
+ */
+export const getVehiclesByPage = (params) => {
+  return request({
+    url: "/admin/vehicle/page",
+    method: "get",
+    params, // 查询参数，包括分页和筛选条件
+  });
+};
+
+/**
+ * 获取可用于分配的车辆列表
+ * @returns {Promise} - 返回可分配的车辆列表
+ */
+export const getAvailableVehicles = () => {
+  return request({
+    url: "/admin/vehicle/available",
+    method: "get",
+  });
+};
+
+/**
+ * 根据ID查询车辆信息
+ * @param {Number} id - 车辆ID
+ * @returns {Promise} - 返回车辆详细信息
+ */
+export const getVehicleById = (id) => {
+  return request({
+    url: `/admin/vehicle/${id}`,
+    method: "get",
+  });
+};
+
+/**
+ * 新增车辆
+ * @param {Object} data - 车辆信息
+ * @returns {Promise} - 返回操作结果
+ */
+export const addVehicle = (data) => {
+  return request({
+    url: "/admin/vehicle",
+    method: "post",
+    data, // 车辆信息
+  });
+};
+
+/**
+ * 更新车辆信息
+ * @param {Object} data - 车辆信息
+ * @returns {Promise} - 返回操作结果
+ */
+export const updateVehicle = (data) => {
+  return request({
+    url: "/admin/vehicle",
+    method: "put",
+    data, // 车辆信息
+  });
+};
+
+/**
+ * 删除车辆
+ * @param {Number} id - 车辆ID
+ * @returns {Promise} - 返回操作结果
+ */
+export const deleteVehicle = (id) => {
+  return request({
+    url: `/admin/vehicle/${id}`,
+    method: "delete",
+  });
+};
+
+/**
+ * 为车辆分配员工
+ * @param {Object} data - 包含车辆ID和员工ID
+ * @returns {Promise} - 返回操作结果
+ */
+export const assignEmployeeToVehicle = (data) => {
+  return request({
+    url: "/admin/vehicle/assignEmployee",
+    method: "post",
+    data,
+  });
+};
+
+/**
+ * 从车辆中移除员工
+ * @param {Object} data - 包含车辆ID和员工ID
+ * @returns {Promise} - 返回操作结果
+ */
+export const removeEmployeeFromVehicle = (data) => {
+  return request({
+    url: "/admin/vehicle/removeEmployee",
+    method: "post",
+    data,
+  });
+};

@@ -1,115 +1,141 @@
 import React, { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
-import logo from "../../../../assets/login/logo.png";
-import minilogo from "../../../../assets/login/mini-logo.png";
 import { Layout, Menu } from "antd";
 import {
   HomeOutlined,
   PieChartOutlined,
   OrderedListOutlined,
-  ShoppingOutlined,
-  AppstoreOutlined,
+  CompassOutlined,
   TeamOutlined,
   UserOutlined,
-  FileAddOutlined,
-} from "@ant-design/icons"; // Import your icon components
-import router from "@/router/route";
-import './Sidebar.scss'
+  CarOutlined,
+  GlobalOutlined,
+  ShopOutlined,
+  UserSwitchOutlined
+} from "@ant-design/icons";
 import { useLocation, useNavigate } from "react-router-dom";
-const Sidebar = () => {
-  const { sidebar } = useSelector((state) => state.app);
+import router from "@/router/route";
+import './Sidebar.scss';
+import logo from "../../../../assets/login/logo.png";
+import miniLogo from "../../../../assets/login/mini-logo.png";
 
-  const iconComponentMap = {
-    homeoutlined: HomeOutlined,
-    piechartoutlined: PieChartOutlined,
-    orderedlistoutlined: OrderedListOutlined,
-    shoppingoutlined: ShoppingOutlined,
-    appstoreoutlined: AppstoreOutlined,
-    teamoutlined: TeamOutlined,
-    useroutlined: UserOutlined,
-    fileaddoutlined: FileAddOutlined,
+const { Sider } = Layout;
+
+const Sidebar = ({ collapsed }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [menuItems, setMenuItems] = useState([]);
+  const [openKeys, setOpenKeys] = useState([]);
+  const selectedKey = location.pathname;
+
+  // 图标映射
+  const iconMap = {
+    HomeOutlined: <HomeOutlined />,
+    PieChartOutlined: <PieChartOutlined />,
+    OrderedListOutlined: <OrderedListOutlined />,
+    CompassOutlined: <CompassOutlined />,
+    TeamOutlined: <TeamOutlined />,
+    UserOutlined: <UserOutlined />,
+    CarOutlined: <CarOutlined />,
+    GlobalOutlined: <GlobalOutlined />,
+    ShopOutlined: <ShopOutlined />,
+    UserSwitchOutlined: <UserSwitchOutlined />
   };
 
-
-  const getIconComponentByName = (iconName) => {
-    const IconComponent = iconComponentMap[iconName.toLowerCase()]; 
-    return IconComponent ? <IconComponent /> : null; 
+  // 获取图标
+  const getIcon = (iconName) => {
+    if (!iconName) return null;
+    return iconMap[iconName] || null;
   };
 
-  //route fetching
-  const [menuList, setMenuList] = useState([]);
+  // 获取路由菜单
   useEffect(() => {
-    const copyRoutes = JSON.parse(JSON.stringify(router.routes));
-    let fetchedMenuList = [];
-    console.log("route:", copyRoutes);
-    const menu = copyRoutes.find((item) => item.path === "/");
-
-    if (menu) {
-      fetchedMenuList = menu.children || [];
-    }
-    setMenuList(fetchedMenuList);
-
-  }, []);
-
-  const visibleMenuList = menuList.filter((e) => !e.meta.hidden);
-  const itemList = visibleMenuList.map((e, index) => {
-    if (e.children && e.children.length > 0) {
-      const children = e.children.map((e, index) => {
-        return {
-          key: index + 1,
-          label: e.meta.title,
-        };
+    // 从路由配置获取菜单
+    const routes = router.routes || [];
+    const mainRoute = routes.find(route => route.path === "/");
+    
+    if (mainRoute && mainRoute.children) {
+      const filteredMenus = mainRoute.children.filter(item => {
+        // 过滤掉不需要显示的菜单项
+        return !item.meta?.hidden;
       });
-      return {
-        key: e.path,
-        icon: e.meta.icon,
-        label: e.meta.title,
-        children,
-      };
+      
+      // 转换为Ant Design Menu需要的items格式
+      const items = convertToMenuItems(filteredMenus);
+      setMenuItems(items);
+      
+      // 设置默认展开的菜单
+      const pathname = location.pathname;
+      const parentPath = '/' + pathname.split('/')[1];
+      setOpenKeys([parentPath]);
     }
-    return {
-      key: e.path,
-      icon: getIconComponentByName(e.meta.icon),
-      label: e.meta.title,
-    };
-  });
+  }, [location.pathname]);
 
-  //sidebar navi impl 
-  const navigate = useNavigate()
-  const menuClick = (e)=>{
-    console.log(e.key);
-    navigate(e.key)
-  }
-  //
-  const location = useLocation()
-  const selectedKey = location.pathname
+  // 将路由配置转换为Menu的items格式
+  const convertToMenuItems = (routeItems) => {
+    return routeItems.map(item => {
+      const icon = getIcon(item.meta?.icon);
+      
+      // 检查是否有子项
+      if (item.children && item.children.length > 0) {
+        const childrenItems = item.children.filter(child => !child.meta?.hidden);
+        
+        if (childrenItems.length === 0) {
+          return {
+            key: item.path,
+            icon,
+            label: item.meta?.title
+          };
+        }
+        
+        return {
+          key: item.path,
+          icon,
+          label: item.meta?.title,
+          children: convertToMenuItems(childrenItems)
+        };
+      }
+      
+      return {
+        key: item.path,
+        icon,
+        label: item.meta?.title
+      };
+    });
+  };
+
+  // 菜单点击
+  const handleMenuClick = ({ key }) => {
+    navigate(key);
+  };
+
+  // 子菜单展开/收起
+  const handleOpenChange = (keys) => {
+    setOpenKeys(keys);
+  };
 
   return (
-    <div className="sidebar-container">
+    <Sider
+      width={220}
+      collapsible
+      collapsed={collapsed}
+      className="sidebar-container"
+      trigger={null}
+    >
       <div className="logo">
-        {sidebar.opened ? (
-          <div className="sidebar-logo">
-            <img src={minilogo} alt="1231231"  />
-          </div>
-        ) : (
-          <div className="sidebar-logo-mini">
-            <img src={logo} alt="2"  />
-          </div>
-        )}
+        <img src={collapsed ? miniLogo : logo} alt="塔斯马尼亚旅游" />
       </div>
-      <div className="sidebar-Menu"
-
-      >
+      <div className="sidebar-Menu">
         <Menu
-          selectedKeys={selectedKey}
-          mode="inline"
           theme="light"
-          inlineCollapsed={sidebar.opened}
-          items={itemList}
-          onClick={menuClick}
+          mode="inline"
+          items={menuItems}
+          selectedKeys={[selectedKey]}
+          openKeys={collapsed ? [] : openKeys}
+          onOpenChange={handleOpenChange}
+          onClick={handleMenuClick}
         />
       </div>
-    </div>
+    </Sider>
   );
 };
 
