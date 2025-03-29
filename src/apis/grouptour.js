@@ -46,7 +46,7 @@ export const getGroupTourById = (id) => {
 // 上传团队游图片
 export const uploadGroupTourImage = (data) => {
   return request({
-    url: '/admin/common/upload',
+    url: '/admin/images/upload',
     method: 'post',
     data
   })
@@ -97,8 +97,10 @@ export const getGroupTourItinerary = (tourId) => {
 
 // 添加团队游行程
 export const addGroupTourItinerary = (data) => {
+  // 注意：这个API可能需要后端支持，如果后端没有提供POST方法的行程添加接口，需要添加
+  // 临时解决方案：使用HTTP请求发送数据到自定义URL
   return request({
-    url: '/admin/grouptour/itinerary',
+    url: `/admin/grouptour/itinerary-add`,
     method: 'post',
     data
   })
@@ -106,9 +108,11 @@ export const addGroupTourItinerary = (data) => {
 
 // 修改团队游行程
 export const updateGroupTourItinerary = (data) => {
+  // 同样，如果后端没有提供相应的PUT方法，需要添加
+  // 临时解决方案：使用HTTP请求发送数据到自定义URL 
   return request({
-    url: '/admin/grouptour/itinerary',
-    method: 'put',
+    url: `/admin/grouptour/itinerary-update`,
+    method: 'post',
     data
   })
 }
@@ -259,4 +263,48 @@ export function addSuitable(data) {
     method: 'post',
     data
   })
+}
+
+/**
+ * 保存团队游的所有行程
+ * @param {Object} data - 行程数据，包含groupTourId和itineraries数组
+ * @returns {Promise} - 返回API响应
+ */
+export function saveGroupTourItineraries(data) {
+  // 处理每个行程项，使用现有的API逐个保存
+  const promises = data.itineraries.map(item => {
+    return addGroupTourItinerary({
+      ...item,
+      groupTourId: data.groupTourId
+    });
+  });
+  
+  // 返回Promise.all的结果
+  return Promise.all(promises).then(results => {
+    // 检查是否所有请求都成功
+    const allSuccess = results.every(res => res.code === 1);
+    
+    if (allSuccess) {
+      // 构造成功响应
+      return {
+        code: 1,
+        msg: '保存行程成功',
+        data: null
+      };
+    } else {
+      // 构造失败响应
+      return {
+        code: 0,
+        msg: '部分行程保存失败',
+        data: null
+      };
+    }
+  }).catch(error => {
+    console.error('保存行程失败:', error);
+    return {
+      code: 0,
+      msg: '保存行程失败',
+      data: null
+    };
+  });
 } 

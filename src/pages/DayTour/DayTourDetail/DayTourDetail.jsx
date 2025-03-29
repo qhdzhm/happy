@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, Card, InputNumber, Select, Upload, message, Space, Tabs, List, Modal, Tooltip, Row, Col } from 'antd';
 import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined, UploadOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getDayTourById, updateDayTour, createDayTour, uploadDayTourImage, getDayTourSchedules, addDayTourSchedule, deleteDayTourSchedule, getDayTourHighlights, addDayTourHighlight, deleteDayTourHighlight, getDayTourInclusions, getDayTourExclusions, getDayTourItineraries, getDayTourFaqs, getDayTourTips, getDayTourImages, addDayTourInclusion, deleteDayTourInclusion, addDayTourExclusion, deleteDayTourExclusion, addDayTourItinerary, deleteDayTourItinerary, addDayTourFaq, deleteDayTourFaq, addDayTourTip, deleteDayTourTip, handleImageUploadToGallery, handleSetPrimaryImage, handleDeleteImage, handleUpdateImageDescription, handleSaveImageDescription, getDayTourThemes, getDayTourSuitableFor, getDayTourRelatedThemes, getDayTourRelatedSuitableFor, updateDayTourRelatedThemes, updateDayTourRelatedSuitableFor } from '@/apis/daytour';
+import { getDayTourById, updateDayTour, createDayTour, uploadDayTourImage, getDayTourHighlights, addDayTourHighlight, deleteDayTourHighlight, getDayTourInclusions, getDayTourExclusions, getDayTourItineraries, getDayTourFaqs, getDayTourTips, getDayTourImages, addDayTourInclusion, deleteDayTourInclusion, addDayTourExclusion, deleteDayTourExclusion, addDayTourItinerary, deleteDayTourItinerary, addDayTourFaq, deleteDayTourFaq, addDayTourTip, deleteDayTourTip, handleImageUploadToGallery, handleSetPrimaryImage, handleDeleteImage, handleUpdateImageDescription, handleSaveImageDescription, getDayTourThemes, getDayTourSuitableFor, getDayTourRelatedThemes, getDayTourRelatedSuitableFor, updateDayTourRelatedThemes, updateDayTourRelatedSuitableFor, getDayTourList } from '@/apis/daytour';
 import ImageUpload from '@/components/ImageUpload';
 import './DayTourDetail.scss';
 
@@ -18,7 +18,6 @@ const DayTourDetail = () => {
   const [imageUrl, setImageUrl] = useState('');
   const [isEdit, setIsEdit] = useState(false);
   const [tourId, setTourId] = useState(null);
-  const [schedules, setSchedules] = useState([]);
   const [highlights, setHighlights] = useState([]);
   const [inclusions, setInclusions] = useState([]);
   const [exclusions, setExclusions] = useState([]);
@@ -26,7 +25,6 @@ const DayTourDetail = () => {
   const [faqs, setFaqs] = useState([]);
   const [tips, setTips] = useState([]);
   const [images, setImages] = useState([]);
-  const [newSchedule, setNewSchedule] = useState({ date: '', adultPrice: 0, childPrice: 0 });
   const [newHighlight, setNewHighlight] = useState('');
   const [newInclusion, setNewInclusion] = useState('');
   const [newExclusion, setNewExclusion] = useState('');
@@ -45,7 +43,6 @@ const DayTourDetail = () => {
       setIsEdit(true);
       setTourId(state.id);
       fetchTourDetails(state.id);
-      fetchSchedules(state.id);
       fetchHighlights(state.id);
       fetchInclusions(state.id);
       fetchExclusions(state.id);
@@ -61,6 +58,23 @@ const DayTourDetail = () => {
     fetchThemes();
     fetchSuitableFor();
   }, [location]);
+
+  // 监控isEdit和tourId的变化，确保在成功保存基本信息后能获取关联数据
+  useEffect(() => {
+    // 只有当isEdit为true且tourId存在时，才尝试获取关联数据
+    if (isEdit && tourId) {
+      console.log('检测到编辑状态和ID变化，重新获取关联数据:', tourId);
+      fetchHighlights(tourId);
+      fetchInclusions(tourId);
+      fetchExclusions(tourId);
+      fetchItineraries(tourId);
+      fetchFaqs(tourId);
+      fetchTips(tourId);
+      fetchImages(tourId);
+      fetchRelatedThemes(tourId);
+      fetchRelatedSuitableFor(tourId);
+    }
+  }, [isEdit, tourId]);
 
   const fetchThemes = async () => {
     try {
@@ -123,7 +137,6 @@ const DayTourDetail = () => {
           duration: tourData.duration,
           category: tourData.category,
           description: tourData.description,
-          pickupInfo: tourData.pickupInfo,
           inclusionExclusion: tourData.inclusionExclusion,
           cancellationPolicy: tourData.cancellationPolicy,
         });
@@ -137,20 +150,6 @@ const DayTourDetail = () => {
     } catch (error) {
       console.error('获取一日游详情失败:', error);
       message.error('获取一日游详情失败');
-    }
-  };
-
-  const fetchSchedules = async (id) => {
-    try {
-      const res = await getDayTourSchedules(id);
-      if (res.code === 1) {
-        setSchedules(res.data || []);
-      } else {
-        message.error(res.msg || '获取日期价格列表失败');
-      }
-    } catch (error) {
-      console.error('获取日期价格列表失败:', error);
-      message.error('获取日期价格列表失败');
     }
   };
 
@@ -283,21 +282,35 @@ const DayTourDetail = () => {
   };
 
   const handleSubmit = async (values) => {
-    if (!imageUrl && !isEdit) {
-      message.error('请上传一张图片');
+    console.log('提交的表单值:', values);
+    setLoading(true);
+    
+    // 检查必填字段
+    if (!values.name || !values.price || !values.duration || !values.category || !values.description) {
+      message.error('请填写所有必填字段');
+      setLoading(false);
+      return;
+    }
+    
+    // 特别检查location字段，因为数据库中它是非空字段
+    if (!values.location) {
+      message.error('位置字段不能为空，请填写位置信息');
+      setLoading(false);
       return;
     }
 
-    setLoading(true);
-    try {
-      const tourData = {
-        ...values,
-        imageUrl
-      };
+    // 构建请求数据
+    const tourData = {
+      ...values,
+      imageUrl: imageUrl || '',
+      themeIds: selectedThemes,
+      suitableIds: selectedSuitable
+    };
 
+    try {
       let res;
       if (isEdit) {
-        tourData.dayTourId = tourId;
+        tourData.id = tourId;
         res = await updateDayTour(tourData);
       } else {
         res = await createDayTour(tourData);
@@ -305,15 +318,49 @@ const DayTourDetail = () => {
 
       if (res.code === 1) {
         message.success(isEdit ? '更新一日游成功' : '创建一日游成功');
+        
+        // 设置编辑状态和ID
+        setIsEdit(true);
+        
+        // 重要：确保设置tourId，不管是新建还是编辑
         if (!isEdit) {
-          setIsEdit(true);
-          setTourId(res.data.dayTourId);
+          // 检查res.data是否为null，如果是，使用默认值或其他方式获取ID
+          if (!res.data) {
+            console.log('警告：服务器返回的数据为null，将尝试从其他地方获取ID');
+            // 尝试从URL参数获取ID或使用后端生成的临时ID
+            // 由于一日游已经成功创建，但没有返回ID，需要重新获取列表找到最新创建的
+            fetchLatestCreatedDayTour(values.name); // 新增函数，根据名称获取最新创建的一日游
+            return; // 先返回，等fetchLatestCreatedDayTour完成后再继续
+          }
+          
+          // 正常情况，设置从响应中获取的ID
+          const newTourId = res.data.id || res.data.dayTourId;
+          setTourId(newTourId);
+          
+          // 如果有关联的主题和适合人群，保存关联关系
+          if (selectedThemes.length > 0) {
+            updateRelatedThemes(newTourId, selectedThemes);
+          }
+          if (selectedSuitable.length > 0) {
+            updateRelatedSuitableFor(newTourId, selectedSuitable);
+          }
+        } else {
+          // 确保编辑模式下也正确设置tourId
+          setTourId(tourId || (res.data ? (res.data.id || res.data.dayTourId) : tourId));
         }
         
-        if (tourId || res.data.dayTourId) {
-          const id = tourId || res.data.dayTourId;
-          updateRelatedThemes(id, selectedThemes);
-          updateRelatedSuitableFor(id, selectedSuitable);
+        // 保存ID到URL状态，以便刷新后保持编辑状态
+        navigate(`/daytour/edit`, { 
+          state: { 
+            id: isEdit ? tourId : (res.data ? (res.data.id || res.data.dayTourId) : tourId), 
+            activeTab: activeTab 
+          },
+          replace: true
+        });
+        
+        // 重新获取详情，更新表单数据
+        if (isEdit || (res.data && (res.data.id || res.data.dayTourId))) {
+          fetchTourDetails(isEdit ? tourId : (res.data.id || res.data.dayTourId));
         }
       } else {
         message.error(res.msg || (isEdit ? '更新一日游失败' : '创建一日游失败'));
@@ -350,6 +397,55 @@ const DayTourDetail = () => {
     }
   };
 
+  // 根据名称获取最新创建的一日游
+  const fetchLatestCreatedDayTour = async (tourName) => {
+    try {
+      // 获取一日游列表，并找到名称匹配的最新记录
+      const res = await getDayTourList({ page: 1, pageSize: 10 });
+      if (res.code === 1 && res.data && res.data.records && res.data.records.length > 0) {
+        // 找到名称匹配的记录
+        const matchedTour = res.data.records.find(tour => tour.name === tourName);
+        
+        if (matchedTour) {
+          console.log('找到匹配的一日游记录:', matchedTour);
+          const newTourId = matchedTour.id;
+          
+          // 设置ID并更新状态
+          setTourId(newTourId);
+          
+          // 如果有关联的主题和适合人群，保存关联关系
+          if (selectedThemes.length > 0) {
+            updateRelatedThemes(newTourId, selectedThemes);
+          }
+          if (selectedSuitable.length > 0) {
+            updateRelatedSuitableFor(newTourId, selectedSuitable);
+          }
+          
+          // 更新URL状态
+          navigate(`/daytour/edit`, { 
+            state: { 
+              id: newTourId, 
+              activeTab: activeTab 
+            },
+            replace: true
+          });
+          
+          // 获取详情
+          fetchTourDetails(newTourId);
+        } else {
+          console.error('未找到匹配的一日游记录');
+          message.error('创建一日游成功，但未能获取ID，请刷新页面');
+        }
+      } else {
+        console.error('获取一日游列表失败:', res);
+        message.error('创建一日游成功，但未能获取ID，请刷新页面');
+      }
+    } catch (error) {
+      console.error('获取最新创建的一日游失败:', error);
+      message.error('创建一日游成功，但未能获取ID，请刷新页面');
+    }
+  };
+
   const handleThemesChange = (value) => {
     setSelectedThemes(value);
   };
@@ -368,70 +464,43 @@ const DayTourDetail = () => {
       
       try {
         const res = await uploadDayTourImage(formData);
-        if (res.code === 1) {
-          setImageUrl(res.data.url);
+        console.log('图片上传响应:', res);
+        
+        if (res.code === 1 && res.data && res.data.url) {
+          // 使用API返回的处理后URL
+          const imageUrlValue = res.data.url;
+          console.log('最终使用的图片URL:', imageUrlValue);
+          
+          // 立即设置状态和表单值
+          setImageUrl(imageUrlValue);
+          form.setFieldsValue({
+            imageUrl: imageUrlValue
+          });
           message.success('图片上传成功');
+          
+          // 立即预加载图片以验证URL是否有效
+          const img = new Image();
+          img.onload = () => {
+            console.log('图片预加载成功');
+          };
+          
+          img.onerror = (e) => {
+            console.error('图片预加载失败:', e);
+            message.warning('图片上传成功但无法显示，请检查网络设置');
+          };
+          
+          // 开始加载图片
+          img.crossOrigin = 'anonymous';
+          img.src = imageUrlValue;
         } else {
-          message.error(res.msg || '图片上传失败');
+          console.error('图片上传响应异常:', res);
+          message.error(res.msg || '图片上传失败，服务器响应异常');
         }
       } catch (error) {
         console.error('图片上传失败:', error);
-        message.error('图片上传失败');
+        message.error('图片上传失败，请检查网络连接');
       }
     }
-  };
-
-  const handleAddSchedule = async () => {
-    if (!tourId) {
-      message.error('请先保存基本信息');
-      return;
-    }
-
-    if (!newSchedule.date) {
-      message.error('请选择日期');
-      return;
-    }
-
-    try {
-      const scheduleData = {
-        dayTourId: tourId,
-        ...newSchedule
-      };
-      
-      const res = await addDayTourSchedule(scheduleData);
-      if (res.code === 1) {
-        message.success('添加日期价格成功');
-        setNewSchedule({ date: '', adultPrice: 0, childPrice: 0 });
-        fetchSchedules(tourId);
-      } else {
-        message.error(res.msg || '添加日期价格失败');
-      }
-    } catch (error) {
-      console.error('添加日期价格失败:', error);
-      message.error('添加日期价格失败');
-    }
-  };
-
-  const handleDeleteSchedule = (scheduleId) => {
-    confirm({
-      title: '确定要删除此日期价格吗?',
-      icon: <ExclamationCircleOutlined />,
-      content: '此操作不可逆，请谨慎操作。',
-      onOk: async () => {
-        try {
-          const res = await deleteDayTourSchedule(scheduleId);
-          if (res.code === 1) {
-            message.success('删除成功');
-            fetchSchedules(tourId);
-          } else {
-            message.error(res.msg || '删除失败');
-          }
-        } catch (error) {
-          console.error('删除日期价格失败:', error);
-          message.error('删除日期价格失败');
-        }
-      },
-    });
   };
 
   const handleAddHighlight = async () => {
@@ -451,6 +520,7 @@ const DayTourDetail = () => {
         description: newHighlight
       };
       
+      console.log('添加亮点，使用的tourId:', tourId);
       const res = await addDayTourHighlight(highlightData);
       if (res.code === 1) {
         message.success('添加亮点成功');
@@ -810,7 +880,16 @@ const DayTourDetail = () => {
                   </Col>
                 </Row>
                 <Row gutter={16}>
-                  <Col span={8}>
+                  <Col span={12}>
+                    <Form.Item
+                      name="location"
+                      label="位置"
+                      rules={[{ required: true, message: '请输入位置信息' }]}
+                    >
+                      <Input placeholder="请输入位置，如：塔斯马尼亚北部" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
                     <Form.Item
                       name="duration"
                       label="持续时间"
@@ -819,6 +898,8 @@ const DayTourDetail = () => {
                       <Input placeholder="如：8小时" />
                     </Form.Item>
                   </Col>
+                </Row>
+                <Row gutter={16}>
                   <Col span={12}>
                     <Form.Item
                       name="category"
@@ -839,7 +920,11 @@ const DayTourDetail = () => {
                 </Row>
                 <Row gutter={16}>
                   <Col span={12}>
-                    <Form.Item label="图片">
+                    <Form.Item 
+                      label="图片"
+                      name="imageUrl"
+                      valuePropName="value"
+                    >
                       <Upload
                         name="file"
                         listType="picture-card"
@@ -850,9 +935,15 @@ const DayTourDetail = () => {
                             message.error('只能上传JPG/PNG图片!');
                             return false;
                           }
+                          const isLt2M = file.size / 1024 / 1024 < 2;
+                          if (!isLt2M) {
+                            message.error('图片必须小于2MB!');
+                            return false;
+                          }
                           return true;
                         }}
                         customRequest={({ file, onSuccess }) => { 
+                          console.log('开始上传文件:', file.name);
                           setTimeout(() => {
                             onSuccess("ok");
                           }, 0);
@@ -860,7 +951,44 @@ const DayTourDetail = () => {
                         }}
                       >
                         {imageUrl ? (
-                          <img src={imageUrl} alt="avatar" style={{ width: '100%' }} />
+                          <div className="image-preview-container" style={{ width: '100%', height: '100%', position: 'relative' }}>
+                            <img 
+                              src={imageUrl} 
+                              alt="一日游封面图"
+                              style={{ 
+                                width: '100%', 
+                                height: '100%', 
+                                objectFit: 'cover',
+                                display: 'block' 
+                              }}
+                              onError={(e) => {
+                                console.error('图片加载失败:', imageUrl);
+                                e.target.onerror = null;
+                                e.target.src = 'https://via.placeholder.com/150?text=加载失败';
+                              }}
+                            />
+                            <div 
+                              className="image-preview-overlay"
+                              style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                background: 'rgba(0,0,0,0.3)',
+                                display: 'flex',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                opacity: 0,
+                                transition: 'opacity 0.3s',
+                                cursor: 'pointer'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                              onMouseLeave={(e) => e.currentTarget.style.opacity = 0}
+                            >
+                              <PlusOutlined style={{ color: '#fff', fontSize: '20px' }} />
+                            </div>
+                          </div>
                         ) : (
                           <div>
                             <PlusOutlined />
@@ -868,6 +996,23 @@ const DayTourDetail = () => {
                           </div>
                         )}
                       </Upload>
+                      <div style={{ marginTop: 8 }}>
+                        {imageUrl && (
+                          <>
+                            <a 
+                              href={imageUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              style={{ fontSize: '12px', marginRight: '10px' }}
+                            >
+                              查看原图
+                            </a>
+                            <span style={{ fontSize: '12px', color: '#52c41a' }}>
+                              {imageUrl.includes('?') ? '图片含URL参数' : '图片URL已简化'}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </Form.Item>
                   </Col>
                 </Row>
@@ -877,12 +1022,6 @@ const DayTourDetail = () => {
                   rules={[{ required: true, message: '请输入详细描述' }]}
                 >
                   <TextArea rows={4} placeholder="请输入详细描述" />
-                </Form.Item>
-                <Form.Item
-                  name="pickupInfo"
-                  label="接送信息"
-                >
-                  <TextArea rows={3} placeholder="请输入接送信息" />
                 </Form.Item>
                 <Form.Item label="主题">
                   <Select
@@ -916,73 +1055,6 @@ const DayTourDetail = () => {
                   </Button>
                 </Form.Item>
               </Form>
-            )
-          },
-          {
-            key: 'calendar',
-            label: '日程安排',
-            children: (
-              <div className="schedule-container">
-                <h4>添加新日期价格</h4>
-                <div className="add-schedule-form">
-                  <Space align="baseline">
-                    <div>
-                      <label>日期</label>
-                      <Input 
-                        type="date" 
-                        value={newSchedule.date}
-                        onChange={(e) => setNewSchedule({...newSchedule, date: e.target.value})}
-                        style={{ width: '180px' }}
-                      />
-                    </div>
-                    <div>
-                      <label>成人价格</label>
-                      <InputNumber 
-                        min={0} 
-                        value={newSchedule.adultPrice}
-                        onChange={(value) => setNewSchedule({...newSchedule, adultPrice: value})}
-                        style={{ width: '120px' }}
-                      />
-                    </div>
-                    <div>
-                      <label>儿童价格</label>
-                      <InputNumber 
-                        min={0} 
-                        value={newSchedule.childPrice}
-                        onChange={(value) => setNewSchedule({...newSchedule, childPrice: value})}
-                        style={{ width: '120px' }}
-                      />
-                    </div>
-                    <Button type="primary" onClick={handleAddSchedule}>添加</Button>
-                  </Space>
-                </div>
-
-                <h4 style={{ marginTop: '20px' }}>已有日期价格列表</h4>
-                <List
-                  bordered
-                  dataSource={schedules}
-                  renderItem={item => (
-                    <List.Item
-                      actions={[
-                        <Tooltip title="删除">
-                          <Button 
-                            type="text" 
-                            danger 
-                            icon={<DeleteOutlined />} 
-                            onClick={() => handleDeleteSchedule(item.id)}
-                          />
-                        </Tooltip>
-                      ]}
-                    >
-                      <div className="schedule-item">
-                        <div className="schedule-date">{item.date}</div>
-                        <div className="schedule-price">成人：¥{item.adultPrice}</div>
-                        <div className="schedule-price">儿童：¥{item.childPrice}</div>
-                      </div>
-                    </List.Item>
-                  )}
-                />
-              </div>
             )
           },
           {
@@ -1020,7 +1092,7 @@ const DayTourDetail = () => {
                         </Tooltip>
                       ]}
                     >
-                      <div className="highlight-content">{item.description}</div>
+                      {item.description}
                     </List.Item>
                   )}
                 />
@@ -1253,7 +1325,7 @@ const DayTourDetail = () => {
             key: 'images',
             label: '图片管理',
             children: isEdit && tourId ? (
-              <Card bordered={false}>
+              <Card variant="borderless">
                 <ImageUpload 
                   type="day_tour" 
                   relatedId={tourId}

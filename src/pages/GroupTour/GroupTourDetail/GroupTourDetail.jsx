@@ -7,6 +7,7 @@ import { getDayTourList } from '@/apis/daytour';
 import DragDropTours from '@/components/DragDropTours';
 import ImageUpload from '@/components/ImageUpload';
 import './GroupTourDetail.scss';
+import { groupBy } from 'lodash';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -23,7 +24,7 @@ const GroupTourDetail = () => {
   const [dayTourLoading, setDayTourLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [isEdit, setIsEdit] = useState(false);
-  const [tourId, setTourId] = useState(null);
+  const [groupTourId, setGroupTourId] = useState(null);
   const [availableDates, setAvailableDates] = useState([]);
   const [itineraries, setItineraries] = useState([]);
   const [themes, setThemes] = useState([]);
@@ -49,8 +50,7 @@ const GroupTourDetail = () => {
   const [dayTourLocationFilter, setDayTourLocationFilter] = useState('');
   const [filteredDayTours, setFilteredDayTours] = useState([]);
   const [allDayTours, setAllDayTours] = useState([]);
-
-  // 新增状态变量，用于添加新主题和适合人群
+  // 添加状态变量，用于添加新主题和适合人群
   const [newThemeName, setNewThemeName] = useState('');
   const [newSuitableName, setNewSuitableName] = useState('');
   const [selectedThemes, setSelectedThemes] = useState([]);
@@ -100,7 +100,7 @@ const GroupTourDetail = () => {
     if (state && state.id) {
       console.log('获取到跟团游ID:', state.id);
       setIsEdit(true);
-      setTourId(state.id);
+      setGroupTourId(state.id);
       fetchData(state.id);
       
       if (state.activeTab) {
@@ -207,7 +207,7 @@ const GroupTourDetail = () => {
         });
 
         // 设置状态变量
-        setTourId(tourId || id); // 如果返回的id为空，使用原有id
+        setGroupTourId(tourId || id); // 如果返回的id为空，使用原有id
         setImageUrl(coverImage);
         
         // 设置所选主题和适合人群
@@ -263,13 +263,18 @@ const GroupTourDetail = () => {
     try {
       const res = await getGroupTourItinerary(id);
       if (res.code === 1) {
-        setItineraries(res.data || []);
+        // 确保每个行程项有一个唯一ID，如果原本没有ID
+        const formattedItineraries = (res.data || []).map(item => ({
+          ...item,
+          id: item.id || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` // 生成临时ID
+        }));
+        setItineraries(formattedItineraries);
       } else {
-        message.error(res.msg || '获取行程列表失败');
+        message.error(res.msg || '获取行程安排失败');
       }
     } catch (error) {
-      console.error('获取行程列表失败:', error);
-      message.error('获取行程列表失败');
+      console.error('获取行程安排失败:', error);
+      message.error('获取行程安排失败');
     }
   };
 
@@ -316,8 +321,8 @@ const GroupTourDetail = () => {
         setFilteredDayTours(tours);
         
         // 如果是编辑模式，获取已关联的一日游
-        if (isEdit && tourId) {
-          fetchRelatedDayTours(tourId);
+        if (isEdit && groupTourId) {
+          fetchRelatedDayTours(groupTourId);
         }
       } else {
         message.error(res.msg || '获取一日游列表失败');
@@ -332,6 +337,7 @@ const GroupTourDetail = () => {
 
   const fetchRelatedDayTours = async (tourId) => {
     try {
+      console.log('fetchRelatedDayTours被调用');
       setDayTourLoading(true);
       const res = await getGroupTourDayTours(tourId);
       
@@ -340,7 +346,7 @@ const GroupTourDetail = () => {
         
         // 处理返回的数据，确保格式正确
         const relatedTours = res.data.map(tour => ({
-            ...tour,
+          ...tour,
           dayTourId: tour.dayTourId, // 确保有dayTourId
           id: tour.id || tour.dayTourId, // 确保有id
           isOptional: tour.isOptional === 1 || tour.isOptional === true
@@ -365,7 +371,7 @@ const GroupTourDetail = () => {
       
       // 准备提交的数据
       const tourData = {
-        id: tourId,
+        id: groupTourId,
         name: values.title,
         description: values.description,
         price: values.price,
@@ -405,7 +411,7 @@ const GroupTourDetail = () => {
         
         if (!isEdit) {
           setIsEdit(true);
-          setTourId(res.data);
+          setGroupTourId(res.data);
         }
         
         // 切换到可用日期标签页
@@ -467,7 +473,7 @@ const GroupTourDetail = () => {
   };
 
   const handleAddAvailableDate = async () => {
-    if (!tourId) {
+    if (!groupTourId) {
       message.error('请先保存基本信息');
       return;
     }
@@ -479,7 +485,7 @@ const GroupTourDetail = () => {
 
     try {
       const dateData = {
-        groupTourId: tourId,
+        groupTourId: groupTourId,
         ...newDate
       };
       
@@ -487,7 +493,7 @@ const GroupTourDetail = () => {
       if (res.code === 1) {
         message.success('添加可用日期成功');
         setNewDate({ startDate: '', endDate: '', adultPrice: 0, childPrice: 0, maxPeople: 20 });
-        fetchAvailableDates(tourId);
+        fetchAvailableDates(groupTourId);
       } else {
         message.error(res.msg || '添加可用日期失败');
       }
@@ -507,7 +513,7 @@ const GroupTourDetail = () => {
           const res = await deleteGroupTourAvailableDate(dateId);
           if (res.code === 1) {
             message.success('删除成功');
-            fetchAvailableDates(tourId);
+            fetchAvailableDates(groupTourId);
           } else {
             message.error(res.msg || '删除失败');
           }
@@ -540,7 +546,7 @@ const GroupTourDetail = () => {
       const values = await itineraryForm.validateFields();
       const itineraryData = {
         ...values,
-        groupTourId: tourId,
+        groupTourId: groupTourId,
       };
 
       let res;
@@ -554,7 +560,7 @@ const GroupTourDetail = () => {
       if (res.code === 1) {
         message.success(editingItinerary ? '更新行程成功' : '添加行程成功');
         setItineraryModalVisible(false);
-        fetchItineraries(tourId);
+        fetchItineraries(groupTourId);
         
         // 如果选择了一日游，也同时关联这个一日游到这一天
         if (values.dayTourId) {
@@ -588,7 +594,7 @@ const GroupTourDetail = () => {
               setSelectedDayTours(updatedDayTours);
               
               // 保存关联的一日游
-              await saveDayTourRelations();
+              saveDayTourRelations();
             } else {
               message.info('该日期已关联此一日游');
             }
@@ -613,7 +619,7 @@ const GroupTourDetail = () => {
           const res = await deleteGroupTourItinerary(itineraryId);
           if (res.code === 1) {
             message.success('删除成功');
-            fetchItineraries(tourId);
+            fetchItineraries(groupTourId);
           } else {
             message.error(res.msg || '删除失败');
           }
@@ -631,7 +637,7 @@ const GroupTourDetail = () => {
 
   const saveDayTourRelations = async () => {
     try {
-      if (!tourId) {
+      if (!groupTourId) {
         message.warning('请先保存跟团游基本信息');
         return;
       }
@@ -645,16 +651,24 @@ const GroupTourDetail = () => {
         isOptional: tour.isOptional ? 1 : 0
       }));
       
-        const res = await saveGroupTourDayTours({
-          groupTourId: tourId,
+      console.log('保存关联一日游数据:', formattedDayTours);
+      
+      const res = await saveGroupTourDayTours({
+        groupTourId: groupTourId,
         dayTours: formattedDayTours
-        });
+      });
         
       if (res.code === 1) {
+        console.log('关联一日游保存成功');
         message.success('关联一日游保存成功');
-        // 重新获取一下最新的关联数据
-        fetchRelatedDayTours(tourId);
+        
+        if (formattedDayTours.length === 0) {
+          console.log('没有一日游数据');
         } else {
+          // 重新获取一下最新的关联数据
+          fetchRelatedDayTours(groupTourId);
+        }
+      } else {
         message.error(res.msg || '关联一日游保存失败');
       }
     } catch (error) {
@@ -995,14 +1009,97 @@ const GroupTourDetail = () => {
             }}
           />
           
-              <div style={{ marginTop: '16px', textAlign: 'center' }}>
-                <Button type="primary" onClick={saveDayTourRelations}>
-                  保存关联
-                </Button>
-              </div>
+          <div style={{ marginTop: '16px', textAlign: 'center' }}>
+            <Button 
+              type="primary" 
+              onClick={saveDayTourRelations} 
+              style={{ marginRight: '8px' }}
+            >
+              保存关联
+            </Button>
+            <Button 
+              type="primary"
+              onClick={generateItineraryFromDayTours}
+            >
+              根据关联一日游生成行程
+            </Button>
+          </div>
         </Spin>
       </div>
     );
+  };
+  
+  // 根据关联一日游生成行程安排
+  const generateItineraryFromDayTours = () => {
+    // 检查是否有关联的一日游
+    if (!selectedDayTours || selectedDayTours.length === 0) {
+      message.warning('请先添加关联的一日游');
+      return;
+    }
+
+    // 先删除现有的所有行程
+    // 清空前端状态中的行程
+    setItineraries([]);
+    
+    // 按天数分组
+    const dayToursGroupedByDay = groupBy(selectedDayTours, 'dayNumber');
+    
+    // 遍历每天的一日游，生成行程项
+    const newItineraries = [];
+
+    Object.keys(dayToursGroupedByDay).forEach(day => {
+      const toursForDay = dayToursGroupedByDay[day];
+      const tourTitles = toursForDay.map(tour => tour.dayTourName).join('、');
+      
+      // 创建行程项
+      const itineraryItem = {
+        id: null, // ID将由后端生成
+        groupTourId: groupTourId,
+        day: parseInt(day),
+        title: `第${day}天: ${tourTitles}`,
+        description: toursForDay.map(tour => `${tour.dayTourName}: ${tour.location}`).join('\n'),
+        meals: '早午晚餐', // 默认值，可以根据实际情况调整
+        accommodation: '舒适酒店', // 默认住宿信息
+      };
+      
+      newItineraries.push(itineraryItem);
+    });
+
+    // 更新状态
+    setItineraries(newItineraries);
+    
+    // 保存到后端
+    saveItineraries(newItineraries);
+    
+    message.success('已根据关联的一日游生成行程安排');
+  };
+
+  // 保存行程安排
+  const saveItineraries = async (itinerariesData) => {
+    setLoading(true);
+    try {
+      // 使用Promise.all并行处理所有行程的保存
+      await Promise.all(itinerariesData.map(async (item) => {
+        try {
+          await addGroupTourItinerary(item);
+        } catch (error) {
+          console.error(`保存第${item.day}天行程失败:`, error);
+          // 继续处理其他行程，不中断流程
+        }
+      }));
+
+      // 保存完成后，重新获取行程
+      const result = await getGroupTourItinerary(groupTourId);
+      if (result.code === 1) {
+        setItineraries(result.data || []);
+        message.success('行程保存成功');
+      }
+    } catch (error) {
+      console.error('保存行程失败:', error);
+      message.error('保存部分行程失败，请检查后重试');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 处理一日游过滤
@@ -1635,6 +1732,32 @@ const GroupTourDetail = () => {
                             <span>餐食: {item.meals || '无'}</span>
                             <span style={{ marginLeft: '16px' }}>住宿: {item.accommodation || '无'}</span>
                           </div>
+                          {/* 显示关联的一日游信息 */}
+                          {item.relatedDayTours && item.relatedDayTours.length > 0 && (
+                            <div className="related-daytours" style={{ marginTop: '8px' }}>
+                              <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>关联一日游:</div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                {item.relatedDayTours.map((tour, idx) => {
+                                  // 查找关联的一日游详情
+                                  const relatedTour = selectedDayTours.find(t => 
+                                    t.dayTourId === tour.dayTourId && t.dayNumber === item.day
+                                  );
+                                  
+                                  if (!relatedTour) return null;
+                                  
+                                  return (
+                                    <Tag 
+                                      key={`${tour.dayTourId}-${idx}`} 
+                                      color={tour.isOptional ? 'orange' : 'blue'}
+                                    >
+                                      {relatedTour.dayTourName || relatedTour.name || '未知一日游'} 
+                                      {tour.isOptional ? ' (可选)' : ''}
+                                    </Tag>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </List.Item>
@@ -1735,10 +1858,10 @@ const GroupTourDetail = () => {
             disabled: !isEdit,
             children: (
               <div className="section-container">
-                <Card bordered={false}>
+                <Card variant="borderless">
                   <ImageUpload 
                     type="group_tour" 
-                    relatedId={tourId}
+                    relatedId={groupTourId}
                     onChange={(images) => {
                       console.log('图片列表已更新:', images);
                     }}

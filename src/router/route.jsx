@@ -12,7 +12,6 @@ import DayTours from "@/pages/DayTour/DayTours";
 import DayTourDetail from "@/pages/DayTour/DayTourDetail/DayTourDetail";
 import ThemeManagement from "@/pages/DayTour/ThemeManagement/ThemeManagement";
 import SuitableManagement from "@/pages/DayTour/SuitableManagement/SuitableManagement";
-import ScheduleManagement from "@/pages/DayTour/ScheduleManagement";
 import GroupTours from "@/pages/GroupTour/GroupTours";
 import GroupTourDetail from "@/pages/GroupTour/GroupTourDetail/GroupTourDetail";
 import BookingManagement from "@/pages/Booking/BookingManagement";
@@ -93,14 +92,6 @@ const router = createBrowserRouter([
         element: <SuitableManagement />,
         meta: {
           title: "适合人群管理",
-          hidden: true
-        }
-      },
-      {
-        path: "/daytour/schedules",
-        element: <ScheduleManagement />,
-        meta: {
-          title: "日程安排管理",
           hidden: true
         }
       },

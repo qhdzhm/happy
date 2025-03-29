@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, message, Switch, Tag, Card, Image, Tooltip } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined, ScheduleOutlined, OrderedListOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Modal, message, Tag, Card, Tooltip } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined, OrderedListOutlined, FileImageOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { getGroupTourList, deleteGroupTour, enableOrDisableGroupTour } from '@/apis/grouptour';
+import { getGroupTourList, deleteGroupTour } from '@/apis/grouptour';
 import './GroupTours.scss';
 
 const { confirm } = Modal;
@@ -81,27 +81,6 @@ const GroupTours = () => {
     });
   };
 
-  const handleStatusChange = async (checked, record) => {
-    try {
-      const status = checked ? 1 : 0;
-      console.log('更改状态的记录:', record);
-      const res = await enableOrDisableGroupTour(status, record.id);
-      if (res.code === 1) {
-        message.success(`跟团游已${checked ? '上架' : '下架'}`);
-        fetchTours();
-      } else {
-        message.error(res.msg || `${checked ? '上架' : '下架'}失败`);
-      }
-    } catch (error) {
-      console.error('更改跟团游状态失败:', error);
-      message.error('更改跟团游状态失败');
-    }
-  };
-
-  const handleManageDates = (record) => {
-    navigate('/grouptour/edit', { state: { id: record.id, activeTab: '2' } });
-  };
-
   const handleManageItinerary = (record) => {
     navigate('/grouptour/edit', { state: { id: record.id, activeTab: '3' } });
   };
@@ -116,25 +95,59 @@ const GroupTours = () => {
   const columns = [
     {
       title: '跟团游ID',
-      dataIndex: 'groupTourId',
-      key: 'groupTourId',
+      dataIndex: 'id',
+      key: 'id',
       width: 80,
     },
     {
       title: '图片',
-      dataIndex: 'imageUrl',
-      key: 'imageUrl',
+      dataIndex: 'coverImage',
+      key: 'coverImage',
       width: 100,
-      render: (imageUrl) => (
-        <Image
-          width={80}
-          height={60}
-          src={imageUrl || 'https://via.placeholder.com/80x60?text=No+Image'}
-          alt="Tour"
-          style={{ objectFit: 'cover' }}
-          fallback="https://via.placeholder.com/80x60?text=Error"
-        />
-      ),
+      render: (coverImage, record) => {
+        return (
+          <div style={{ 
+            width: 80, 
+            height: 60, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            overflow: 'hidden',
+            border: '1px solid #d9d9d9'
+          }}>
+            {coverImage ? (
+              <img 
+                src={coverImage} 
+                alt={record.name || 'Tour'} 
+                style={{ 
+                  width: '100%', 
+                  height: '100%', 
+                  objectFit: 'cover',
+                  display: 'block'
+                }} 
+                onError={(e) => {
+                  console.error('图片加载失败:', coverImage);
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+            ) : (
+              <FileImageOutlined style={{ fontSize: 24, color: '#999' }} />
+            )}
+            <div style={{ 
+              width: '100%', 
+              height: '100%', 
+              display: 'none', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              background: '#f5f5f5', 
+              color: '#999'
+            }}>
+              <FileImageOutlined style={{ fontSize: 24 }} />
+            </div>
+          </div>
+        );
+      },
     },
     {
       title: '名称',
@@ -173,42 +186,25 @@ const GroupTours = () => {
     },
     {
       title: '主题',
-      dataIndex: 'theme',
-      key: 'theme',
-    },
-    {
-      title: '状态',
-      key: 'isActive',
-      dataIndex: 'isActive',
-      render: (isActive, record) => (
-        <Switch
-          checked={isActive === 1}
-          onChange={(checked) => handleStatusChange(checked, record)}
-        />
-      ),
+      dataIndex: 'themes',
+      key: 'themes',
+      render: (themes) => {
+        if (!themes || themes.length === 0) return '无主题';
+        return Array.isArray(themes) 
+          ? themes.map((theme, index) => (
+              <Tag color="blue" key={index}>
+                {theme}
+              </Tag>
+            ))
+          : themes;
+      }
     },
     {
       title: '操作',
       key: 'action',
-      width: 320,
+      width: 120,
       render: (_, record) => (
         <Space size="small">
-          <Button
-            type="primary"
-            size="small"
-            icon={<ScheduleOutlined />}
-            onClick={() => handleManageDates(record)}
-          >
-            可用日期
-          </Button>
-          <Button
-            type="primary"
-            size="small"
-            icon={<OrderedListOutlined />}
-            onClick={() => handleManageItinerary(record)}
-          >
-            行程安排
-          </Button>
           <Button
             type="primary"
             size="small"
@@ -241,11 +237,12 @@ const GroupTours = () => {
         <Table
           columns={columns}
           dataSource={tours}
-          rowKey="groupTourId"
+          rowKey="id"
           pagination={pagination}
           loading={loading}
           onChange={handleTableChange}
-          scroll={{ x: 1300 }}
+          scroll={{ x: 1100 }}
+          size="small"
         />
       </Card>
     </div>

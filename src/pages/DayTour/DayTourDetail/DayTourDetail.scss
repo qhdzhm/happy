@@ -21,7 +21,7 @@
     max-width: 800px;
   }
 
-  .schedule-container, .highlight-container {
+  .highlight-container {
     padding: 16px 0;
 
     h4 {
@@ -30,7 +30,7 @@
       margin-bottom: 16px;
     }
 
-    .add-schedule-form, .add-highlight-form {
+    .add-highlight-form {
       margin-bottom: 24px;
       padding: 16px;
       background-color: #f9f9f9;
@@ -39,22 +39,6 @@
       label {
         display: block;
         margin-bottom: 8px;
-      }
-    }
-
-    .schedule-item {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-
-      .schedule-date {
-        font-weight: 500;
-        margin-right: 16px;
-        min-width: 100px;
-      }
-
-      .schedule-price {
-        margin-right: 16px;
       }
     }
 

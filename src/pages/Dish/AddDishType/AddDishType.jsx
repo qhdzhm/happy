@@ -285,11 +285,11 @@ const AddDishType = () => {
             rules={[{ required: true, message: "Please upload cover" }]}
           >
             <Upload
-              listType="picture-card"
-              showUploadList
-              action={"http://localhost:8080/admin/common/upload"}
-              onChange={onUploadChange}
               name="file"
+              listType="picture-card"
+              showUploadList={false}
+              action={"http://localhost:8080/admin/images/upload"}
+              onChange={onUploadChange}
               maxCount={1}
               headers={{
                 Token: `${token}`,

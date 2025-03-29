@@ -13,11 +13,24 @@ export function getDayTourList(params) {
 
 // 创建一日游
 export const createDayTour = (data) => {
+  console.log('创建一日游，提交数据:', data);
   return request({
     url: '/admin/daytour',
     method: 'post',
     data
   })
+  .then(response => {
+    console.log('创建一日游响应:', response);
+    return response;
+  })
+  .catch(error => {
+    console.error('创建一日游请求出错:', error);
+    return {
+      code: 0,
+      msg: '网络错误: ' + (error.message || '未知错误'),
+      data: null
+    };
+  });
 }
 
 // 修改一日游信息
@@ -46,12 +59,46 @@ export const getDayTourById = (id) => {
 }
 
 // 上传一日游图片
-export const uploadDayTourImage = (data) => {
-  return request({
-    url: '/admin/common/upload',
-    method: 'post',
-    data
-  })
+export const uploadDayTourImage = async (data) => {
+  try {
+    const res = await request({
+      url: '/admin/images/upload',
+      method: 'post',
+      data,
+      // 添加超时时间
+      timeout: 30000, 
+    });
+    
+    // 处理返回的URL
+    if (res.code === 1) {
+      // 后端可能直接返回URL字符串作为data，而不是包含url属性的对象
+      const urlString = typeof res.data === 'string' ? res.data : (res.data && res.data.url ? res.data.url : '');
+      
+      if (urlString) {
+        // 可能需要移除URL上的参数，以避免跨域问题
+        const cleanUrl = urlString.split('?')[0];
+        console.log('处理后的图片URL:', cleanUrl);
+        
+        return {
+          ...res,
+          data: {
+            url: cleanUrl,
+            originalUrl: urlString // 保留原始URL作为备份
+          }
+        };
+      }
+    }
+    
+    console.warn('无效的图片URL响应:', res);
+    return res;
+  } catch (error) {
+    console.error('上传图片API调用失败:', error);
+    return {
+      code: 0,
+      msg: '上传图片失败: ' + (error.message || '未知错误'),
+      data: null
+    };
+  }
 }
 
 // 一日游上架/下架
@@ -243,19 +290,6 @@ export const getDayTourImages = (tourId) => {
   return request({
     url: `/admin/daytour/images/${tourId}`,
     method: 'get'
-  })
-}
-
-// 上传图片到图片库
-export const handleImageUploadToGallery = async (file, tourId) => {
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('tourId', tourId)
-  
-  return request({
-    url: '/admin/daytour/image',
-    method: 'post',
-    data: formData
   })
 }
 
@@ -522,5 +556,18 @@ export function associateDayTourSuitables(dayTourId, suitableIds) {
       dayTourId,
       suitableIds
     }
+  })
+}
+
+// 上传图片到图片库
+export const handleImageUploadToGallery = async (file, tourId) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('tourId', tourId)
+  
+  return request({
+    url: '/admin/daytour/image',
+    method: 'post',
+    data: formData
   })
 } 

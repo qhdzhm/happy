@@ -1,11 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Modal, message, Switch, Tag, Card, Image, Tooltip } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined, ScheduleOutlined, HighlightOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined, FileImageOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { getDayTourList, deleteDayTour, enableOrDisableDayTour } from '@/apis/daytour';
 import './DayTours.scss';
 
 const { confirm } = Modal;
+
+// 处理OSS图片URL的函数
+const processImageUrl = (url) => {
+  if (!url) return '';
+  
+  // 如果是阿里云OSS的URL，尝试直接使用，不做额外处理
+  // 前端直接显示后端返回的图片URL
+  return url;
+};
 
 const DayTours = () => {
   const [tours, setTours] = useState([]);
@@ -30,6 +39,7 @@ const DayTours = () => {
       };
       const res = await getDayTourList(params);
       if (res.code === 1) {
+        console.log('后端返回的一日游数据:', res.data.records);
         setTours(res.data.records);
         setPagination({
           ...pagination,
@@ -94,14 +104,6 @@ const DayTours = () => {
     }
   };
 
-  const handleManageSchedules = (record) => {
-    navigate('/daytour/edit', { state: { id: record.dayTourId, activeTab: '2' } });
-  };
-
-  const handleManageHighlights = (record) => {
-    navigate('/daytour/edit', { state: { id: record.dayTourId, activeTab: '3' } });
-  };
-
   const getRatingTag = (rating) => {
     if (rating >= 4.5) return <Tag color="green">{rating}</Tag>;
     if (rating >= 3.5) return <Tag color="blue">{rating}</Tag>;
@@ -118,19 +120,54 @@ const DayTours = () => {
     },
     {
       title: '图片',
-      dataIndex: 'imageUrl',
-      key: 'imageUrl',
+      dataIndex: 'coverImage',
+      key: 'coverImage',
       width: 100,
-      render: (imageUrl) => (
-        <Image
-          width={80}
-          height={60}
-          src={imageUrl || 'https://via.placeholder.com/80x60?text=No+Image'}
-          alt="Tour"
-          style={{ objectFit: 'cover' }}
-          fallback="https://via.placeholder.com/80x60?text=Error"
-        />
-      ),
+      render: (coverImage, record) => {
+        // 直接使用原始URL
+        return (
+          <div style={{ 
+            width: 80, 
+            height: 60, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            overflow: 'hidden',
+            border: '1px solid #d9d9d9'
+          }}>
+            {coverImage ? (
+              <img 
+                src={coverImage} 
+                alt={record.name || 'Tour'} 
+                style={{ 
+                  width: '100%', 
+                  height: '100%', 
+                  objectFit: 'cover',
+                  display: 'block'
+                }} 
+                onError={(e) => {
+                  console.error('图片加载失败:', coverImage);
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+            ) : (
+              <FileImageOutlined style={{ fontSize: 24, color: '#999' }} />
+            )}
+            <div style={{ 
+              width: '100%', 
+              height: '100%', 
+              display: 'none', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              background: '#f5f5f5', 
+              color: '#999'
+            }}>
+              <FileImageOutlined style={{ fontSize: 24 }} />
+            </div>
+          </div>
+        );
+      },
     },
     {
       title: '名称',
@@ -173,38 +210,11 @@ const DayTours = () => {
       key: 'category',
     },
     {
-      title: '状态',
-      key: 'isActive',
-      dataIndex: 'isActive',
-      render: (isActive, record) => (
-        <Switch
-          checked={isActive === 1}
-          onChange={(checked) => handleStatusChange(checked, record)}
-        />
-      ),
-    },
-    {
       title: '操作',
       key: 'action',
-      width: 320,
+      width: 180,
       render: (_, record) => (
         <Space size="small">
-          <Button
-            type="primary"
-            size="small"
-            icon={<ScheduleOutlined />}
-            onClick={() => handleManageSchedules(record)}
-          >
-            日期和价格
-          </Button>
-          <Button
-            type="primary"
-            size="small"
-            icon={<HighlightOutlined />}
-            onClick={() => handleManageHighlights(record)}
-          >
-            亮点
-          </Button>
           <Button
             type="primary"
             size="small"
@@ -220,13 +230,6 @@ const DayTours = () => {
             onClick={() => handleDelete(record.dayTourId)}
           >
             删除
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            onClick={() => navigate(`/daytour/schedules?id=${record.dayTourId}`)}
-          >
-            日程安排
           </Button>
         </Space>
       ),
