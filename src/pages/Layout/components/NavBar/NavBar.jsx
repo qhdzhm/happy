@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { Button, Layout, Dropdown, Avatar, Menu, Badge } from 'antd';
 import { MenuUnfoldOutlined, MenuFoldOutlined, UserOutlined, LogoutOutlined, BellOutlined, GlobalOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import NotificationCenter from '../../../../components/NotificationCenter/NotificationCenter';
 import './NavBar.scss';
 
 const { Header } = Layout;
 
 const NavBar = ({ collapsed, toggle }) => {
   const navigate = useNavigate();
-  const [notificationCount, setNotificationCount] = useState(3);
 
   const handleLogout = () => {
     // 可以在这里添加登出逻辑，例如清除本地存储的token
@@ -50,9 +50,7 @@ const NavBar = ({ collapsed, toggle }) => {
         </div>
       </div>
       <div className="navbar-right">
-        <Badge count={notificationCount} className="notification-badge">
-          <BellOutlined className="notification-icon" />
-        </Badge>
+        <NotificationCenter />
         <Dropdown menu={{ items: menuItems }} trigger={['click']}>
           <div className="avatar-wrapper">
             <Avatar icon={<UserOutlined />} className="admin-avatar" />

@@ -1,53 +1,62 @@
 import request from '@/utils/request'
 
-// 用户列表
+// 分页查询普通用户列表
 export const getUserList = (params) => {
   return request({
-    url: '/admin/employee/page',
+    url: '/admin/users/page',
     method: 'get',
     params
   })
 }
 
-// 创建用户
+// 创建普通用户
 export const createUser = (data) => {
   return request({
-    url: '/admin/employee',
+    url: '/admin/users',
     method: 'post',
     data
   })
 }
 
-// 修改用户
+// 修改普通用户信息
 export const updateUser = (data) => {
   return request({
-    url: '/admin/employee',
+    url: '/admin/users',
     method: 'put',
     data
   })
 }
 
-// 删除用户
+// 删除普通用户
 export const deleteUser = (id) => {
   return request({
-    url: `/admin/employee/${id}`,
+    url: `/admin/users/${id}`,
     method: 'delete'
   })
 }
 
-// 启用/禁用用户账号
-export const enableOrDisableUser = (status, id) => {
+// 启用/禁用普通用户账号
+export const updateUserStatus = (data) => {
   return request({
-    url: `/admin/employee/status/${id}`,
+    url: '/admin/users/status',
     method: 'put',
-    params: { status }
+    data
   })
 }
 
-// 根据ID获取用户详情
+// 根据ID获取普通用户详情
 export const getUserById = (id) => {
   return request({
-    url: `/admin/employee/${id}`,
+    url: `/admin/users/${id}`,
     method: 'get'
+  })
+}
+
+// 重置普通用户密码
+export const resetUserPassword = (data) => {
+  return request({
+    url: '/admin/users/password',
+    method: 'put',
+    data
   })
 }

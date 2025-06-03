@@ -3,16 +3,16 @@ import request from '@/utils/request'
 // 获取预订订单列表
 export const getBookingList = (params) => {
   return request({
-    url: '/admin/booking/page',
+    url: '/admin/orders/list',
     method: 'get',
     params
-  })
+  });
 }
 
 // 根据ID获取预订详情
 export const getBookingById = (id) => {
   return request({
-    url: `/admin/booking/${id}`,
+    url: `/admin/orders/${id}`,
     method: 'get'
   })
 }
@@ -20,25 +20,25 @@ export const getBookingById = (id) => {
 // 修改预订状态
 export const updateBookingStatus = (id, status) => {
   return request({
-    url: '/admin/booking/status',
+    url: `/admin/orders/${id}/status`,
     method: 'put',
-    data: { id, status }
+    data: { status }
   })
 }
 
 // 修改支付状态
 export const updatePaymentStatus = (id, paymentStatus) => {
   return request({
-    url: '/admin/booking/payment',
+    url: `/admin/orders/${id}/status`,
     method: 'put',
-    data: { id, paymentStatus }
+    data: { paymentStatus }
   })
 }
 
 // 添加支付记录
 export const addPaymentRecord = (data) => {
   return request({
-    url: '/admin/booking/payment',
+    url: '/admin/orders/payment',
     method: 'post',
     data
   })
@@ -47,16 +47,16 @@ export const addPaymentRecord = (data) => {
 // 取消预订
 export const cancelBooking = (id, reason) => {
   return request({
-    url: '/admin/booking/cancel',
+    url: `/admin/orders/${id}/cancel`,
     method: 'put',
-    data: { id, reason }
+    data: { remark: reason }
   })
 }
 
 // 获取今日预订统计
 export const getTodayBookingStatistics = () => {
   return request({
-    url: '/admin/booking/statistics/today',
+    url: '/admin/orders/statistics/today',
     method: 'get'
   })
 }
@@ -64,8 +64,8 @@ export const getTodayBookingStatistics = () => {
 // 获取预订统计（按日期范围）
 export const getBookingStatisticsByDate = (begin, end) => {
   return request({
-    url: '/admin/booking/statistics',
+    url: '/admin/orders/statistics',
     method: 'get',
-    params: { begin, end }
+    params: { startDate: begin, endDate: end }
   })
 } 

@@ -33,7 +33,6 @@ const AddAgent = () => {
           contactPerson: agentData.contactPerson,
           email: agentData.email,
           phone: agentData.phone,
-          address: agentData.address,
           discountRate: agentData.discountRate * 100,
         });
       } else {
@@ -149,13 +148,6 @@ const AddAgent = () => {
             rules={[{ required: true, message: '请输入电话' }]}
           >
             <Input placeholder="请输入电话" />
-          </Form.Item>
-
-          <Form.Item
-            name="address"
-            label="地址"
-          >
-            <Input placeholder="请输入地址" />
           </Form.Item>
 
           <Form.Item

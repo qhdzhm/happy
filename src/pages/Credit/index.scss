@@ -1,0 +1,517 @@
+.credit-management {
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+
+  .credit-filter {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    
+    .filter-item {
+      margin-right: 20px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      
+      .label {
+        margin-right: 8px;
+        color: rgba(0, 0, 0, 0.85);
+      }
+    }
+  }
+  
+  .ant-table-wrapper {
+    margin-top: 10px;
+  }
+  
+  .ant-table-thead > tr > th {
+    font-weight: 600;
+    background-color: #f7f7f7;
+  }
+}
+
+// 详情信息样式
+.credit-detail-info {
+  .detail-row {
+    margin-bottom: 16px;
+    display: flex;
+
+    .detail-label {
+      width: 120px;
+      font-weight: 600;
+      text-align: right;
+      margin-right: 12px;
+      color: rgba(0, 0, 0, 0.85);
+    }
+
+    .detail-value {
+      flex: 1;
+      color: rgba(0, 0, 0, 0.65);
+      word-break: break-all;
+    }
+  }
+  
+  .reason-area {
+    margin-top: 8px;
+    
+    .reason-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: rgba(0, 0, 0, 0.85);
+    }
+    
+    .reason-content {
+      background-color: #f9f9f9;
+      padding: 12px;
+      border-radius: 4px;
+      border: 1px solid #eee;
+      color: rgba(0, 0, 0, 0.65);
+    }
+  }
+} 
+
+// 代理商信用额度管理样式
+.agent-credit-management {
+  .credit-card {
+    margin-bottom: 24px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+    
+    .ant-card-head {
+      background-color: #f7faff;
+      border-bottom: 1px solid #e6f0ff;
+    }
+  }
+  
+  .credit-stats {
+    padding: 16px 0;
+    background-color: #fafafa;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    
+    .ant-statistic {
+      padding: 0 16px;
+      
+      .ant-statistic-title {
+        font-size: 14px;
+        color: rgba(0, 0, 0, 0.65);
+        margin-bottom: 8px;
+      }
+      
+      .ant-statistic-content {
+        font-size: 20px;
+        font-weight: 600;
+      }
+    }
+  }
+  
+  .credit-filter {
+    padding: 16px 0;
+    
+    .ant-form-item {
+      margin-bottom: 12px;
+    }
+  }
+  
+  .credit-table {
+    margin-top: 16px;
+    
+    .ant-table-thead > tr > th {
+      background-color: #f7faff;
+      font-weight: 500;
+    }
+    
+    .ant-progress {
+      width: 100%;
+      margin-right: 0;
+    }
+    
+    .ant-table-row:hover {
+      background-color: #f7faff;
+    }
+  }
+  
+  // 代理商信用额度状态标签
+  .credit-status {
+    &-good {
+      color: #52c41a;
+    }
+    
+    &-warning {
+      color: #faad14;
+    }
+    
+    &-danger {
+      color: #f5222d;
+    }
+  }
+  
+  .credit-rules {
+    margin: 5px 0;
+    padding-left: 20px;
+    
+    li {
+      line-height: 24px;
+    }
+  }
+  
+  .stat-note {
+    font-size: 12px;
+    color: #888;
+    margin-top: 5px;
+  }
+}
+
+// 信用额度充值模态框样式
+.credit-topup-modal {
+  .topup-steps {
+    margin-bottom: 0;
+    padding-top: 8px;
+    width: 100%;
+  }
+
+  .credit-topup-content {
+    padding: 16px 0;
+    min-height: 280px;
+    
+    .agent-credit-info {
+      margin: 12px 0 24px;
+      padding: 12px;
+      background-color: #f9f9f9;
+      border-radius: 4px;
+      border: 1px solid #f0f0f0;
+      
+      .info-item {
+        display: flex;
+        margin-bottom: 8px;
+        
+        &:last-child {
+          margin-bottom: 0;
+        }
+        
+        .label {
+          width: 100px;
+          color: rgba(0, 0, 0, 0.65);
+        }
+        
+        .value {
+          flex: 1;
+          font-weight: 500;
+          
+          &.available {
+            color: #52c41a;
+          }
+        }
+      }
+    }
+    
+    .confirm-info {
+      .confirm-title {
+        font-size: 16px;
+        font-weight: 500;
+        color: rgba(0, 0, 0, 0.85);
+        text-align: center;
+      }
+      
+      .confirm-item {
+        display: flex;
+        margin-bottom: 12px;
+        
+        .label {
+          width: 120px;
+          color: rgba(0, 0, 0, 0.65);
+        }
+        
+        .value {
+          flex: 1;
+          color: rgba(0, 0, 0, 0.85);
+          font-weight: 500;
+          
+          &.amount {
+            color: #1890ff;
+            font-size: 16px;
+            font-weight: 600;
+          }
+          
+          &.available {
+            color: #52c41a;
+          }
+          
+          &.note {
+            color: rgba(0, 0, 0, 0.65);
+            font-weight: normal;
+          }
+        }
+      }
+      
+      .confirm-warning {
+        color: #faad14;
+        text-align: center;
+        margin-top: 16px;
+      }
+    }
+  }
+}
+
+// 交易记录页面样式
+.transaction-management {
+  .stats-card {
+    margin-bottom: 24px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+    
+    .ant-card-head {
+      background-color: #f7faff;
+      border-bottom: 1px solid #e6f0ff;
+    }
+    
+    .ant-statistic {
+      padding: 16px;
+      
+      .ant-statistic-title {
+        font-size: 14px;
+        color: rgba(0, 0, 0, 0.65);
+        margin-bottom: 8px;
+      }
+      
+      .ant-statistic-content {
+        font-size: 24px;
+        font-weight: 600;
+      }
+    }
+  }
+  
+  .transaction-card {
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+    
+    .ant-card-head {
+      background-color: #f7faff;
+      border-bottom: 1px solid #e6f0ff;
+    }
+    
+    .credit-filter {
+      padding: 16px 0;
+      
+      .ant-form-item {
+        margin-bottom: 12px;
+      }
+    }
+  }
+  
+  .transaction-table {
+    margin-top: 16px;
+    
+    .ant-table-thead > tr > th {
+      background-color: #f7faff;
+      font-weight: 500;
+    }
+    
+    .ant-table-row:hover {
+      background-color: #f7faff;
+    }
+  }
+} 
+
+// 修改信用额度信息卡片的样式，增加预存余额样式
+.agent-credit-info {
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 16px;
+  
+  .info-item {
+    margin-bottom: 8px;
+    
+    .label {
+      display: inline-block;
+      width: 120px;
+      color: #555;
+    }
+    
+    .value {
+      font-weight: bold;
+      color: #333;
+      
+      &.available {
+        color: #52c41a;
+      }
+      
+      &.deposit {
+        color: #1890ff;
+      }
+    }
+    
+    .note {
+      font-size: 12px;
+      color: #888;
+      margin-left: 10px;
+      font-weight: normal;
+    }
+  }
+}
+
+// 确认信息样式优化
+.confirm-info {
+  .confirm-item {
+    margin-bottom: 12px;
+    
+    .label {
+      display: inline-block;
+      width: 120px;
+      color: #555;
+    }
+    
+    .value {
+      font-weight: bold;
+      
+      &.amount {
+        color: #f5222d;
+        font-size: 18px;
+      }
+      
+      &.available {
+        color: #52c41a;
+      }
+    }
+    
+    .note {
+      display: block;
+      margin-top: 5px;
+      margin-left: 120px;
+      font-size: 12px;
+      color: #888;
+      line-height: 1.5;
+    }
+  }
+}
+
+// 添加编辑信用额度的模态框样式
+.credit-edit-modal {
+  .ant-modal-body {
+    padding: 20px;
+  }
+  
+  .credit-info-summary {
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    padding: 16px;
+    margin-bottom: 20px;
+    
+    p {
+      margin-bottom: 8px;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+      
+      strong {
+        display: inline-block;
+        width: 100px;
+        color: #555;
+      }
+    }
+  }
+  
+  .edit-form-footer {
+    text-align: right;
+    margin-top: 20px;
+  }
+}
+
+// 信用评级样式
+.credit-rating {
+  padding: 2px 8px;
+  border-radius: 2px;
+  
+  &-AAA, &-AA, &-A {
+    background-color: #f6ffed;
+    border: 1px solid #b7eb8f;
+    color: #52c41a;
+  }
+  
+  &-BBB, &-BB, &-B {
+    background-color: #fffbe6;
+    border: 1px solid #ffe58f;
+    color: #faad14;
+  }
+  
+  &-CCC, &-CC, &-C, &-D {
+    background-color: #fff2f0;
+    border: 1px solid #ffccc7;
+    color: #f5222d;
+  }
+}
+
+// 状态标签样式增强
+.status-tag {
+  padding: 0 7px;
+  border-radius: 2px;
+  
+  &-normal {
+    background-color: #f6ffed;
+    border: 1px solid #b7eb8f;
+    color: #52c41a;
+  }
+  
+  &-frozen {
+    background-color: #fff2f0;
+    border: 1px solid #ffccc7;
+    color: #f5222d;
+  }
+}
+
+// 表格中的额外字段样式
+.credit-extra-info {
+  color: #999;
+  font-size: 12px;
+  margin-top: 4px;
+  
+  .info-item {
+    display: inline-block;
+    margin-right: 10px;
+    
+    &:last-child {
+      margin-right: 0;
+    }
+    
+    .label {
+      color: #666;
+      margin-right: 4px;
+    }
+  }
+}
+
+// 详情展示区样式
+.credit-detail-panel {
+  padding: 12px;
+  background-color: #fafafa;
+  border-radius: 4px;
+  margin-top: 8px;
+  
+  .detail-item {
+    display: flex;
+    margin-bottom: 8px;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+    
+    .label {
+      width: 120px;
+      color: #666;
+    }
+    
+    .value {
+      flex: 1;
+      
+      &.date {
+        color: #1890ff;
+      }
+      
+      &.number {
+        color: #722ed1;
+      }
+    }
+  }
+} 

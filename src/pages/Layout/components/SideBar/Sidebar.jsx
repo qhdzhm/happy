@@ -10,7 +10,8 @@ import {
   CarOutlined,
   GlobalOutlined,
   ShopOutlined,
-  UserSwitchOutlined
+  UserSwitchOutlined,
+  CustomerServiceOutlined
 } from "@ant-design/icons";
 import { useLocation, useNavigate } from "react-router-dom";
 import router from "@/router/route";
@@ -38,7 +39,8 @@ const Sidebar = ({ collapsed }) => {
     CarOutlined: <CarOutlined />,
     GlobalOutlined: <GlobalOutlined />,
     ShopOutlined: <ShopOutlined />,
-    UserSwitchOutlined: <UserSwitchOutlined />
+    UserSwitchOutlined: <UserSwitchOutlined />,
+    CustomerServiceOutlined: <CustomerServiceOutlined />
   };
 
   // 获取图标

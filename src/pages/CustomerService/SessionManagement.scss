@@ -1,0 +1,51 @@
+.session-management {
+  .session-messages-drawer {
+    .message-item {
+      width: 100%;
+      margin-bottom: 12px;
+      
+      &.user-message {
+        .message-header {
+          .ant-avatar {
+            background-color: #1890ff;
+          }
+        }
+        
+        .message-content {
+          background-color: #f0f0f0;
+          margin-left: 32px;
+          padding: 8px 12px;
+          border-radius: 12px;
+          border-top-left-radius: 4px;
+        }
+      }
+      
+      &.service-message {
+        .message-header {
+          .ant-avatar {
+            background-color: #52c41a;
+          }
+        }
+        
+        .message-content {
+          background-color: #e6f7ff;
+          margin-left: 32px;
+          padding: 8px 12px;
+          border-radius: 12px;
+          border-top-left-radius: 4px;
+        }
+      }
+      
+      .message-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+      
+      .message-content {
+        word-wrap: break-word;
+        line-height: 1.5;
+      }
+    }
+  }
+} 

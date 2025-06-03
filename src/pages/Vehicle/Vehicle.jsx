@@ -5,7 +5,8 @@ import {
   ReloadOutlined, 
   CarOutlined,
   EditOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  CalendarOutlined
 } from "@ant-design/icons";
 import {
   Button,
@@ -27,6 +28,7 @@ import {
 import dayjs from "dayjs";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import VehicleAvailabilityModal from "@/components/AvailabilityManagement/VehicleAvailabilityModal";
 import "./Vehicle.scss";
 
 const { Option } = Select;
@@ -36,7 +38,6 @@ const initialQueryParams = {
   vehicleType: "", // 车辆类型
   licensePlate: "", // 车牌号
   status: null, // 状态
-  driverName: "", // 驾驶员姓名
   location: "", // 车辆地址
   seatCount: null, // 座位数量
   regoExpiryDate: null, // 申请日期
@@ -69,6 +70,10 @@ const Vehicle = () => {
     total: 0,
   });
   const [form] = Form.useForm();
+
+  // 可用性管理相关状态
+  const [availabilityModalVisible, setAvailabilityModalVisible] = useState(false);
+  const [currentVehicle, setCurrentVehicle] = useState(null);
 
   // 获取车辆列表
   const fetchVehicles = async () => {
@@ -170,15 +175,14 @@ const Vehicle = () => {
     navigate("/vehicle/add");
   };
 
+  // 打开可用性管理对话框
+  const showAvailabilityModal = (record) => {
+    setCurrentVehicle(record);
+    setAvailabilityModalVisible(true);
+  };
+
   // 表格列定义
   const columns = [
-    // 隐藏车辆ID列
-    // {
-    //   title: "车辆ID",
-    //   dataIndex: "vehicleId",
-    //   key: "vehicleId",
-    //   width: 80,
-    // },
     {
       title: "车辆类型",
       dataIndex: "vehicleType",
@@ -211,7 +215,7 @@ const Vehicle = () => {
       ),
     },
     {
-      title: "申请日期",
+      title: "注册到期日期",
       dataIndex: "regoExpiryDate",
       key: "regoExpiryDate",
       render: (date) => (date ? dayjs(date).format("YYYY-MM-DD") : "-"),
@@ -243,14 +247,6 @@ const Vehicle = () => {
 
         // 获取状态文本
         const { color, text } = getStatusTag(status);
-        let statusText = text;
-        
-        // 如果是已占用状态，显示驾驶员数量
-        if (status === 2) {
-          const currentCount = record.currentDriverCount || 0;
-          const maxDrivers = record.maxDrivers || 3;
-          statusText = `已占用 (${currentCount}/${maxDrivers})`;
-        }
         
         // 添加日期提示
         let dateInfo = null;
@@ -279,39 +275,8 @@ const Vehicle = () => {
         
         return (
           <Space direction="vertical" size={0}>
-            <Tag color={color}>{statusText}</Tag>
+            <Tag color={color}>{text}</Tag>
             {dateInfo}
-          </Space>
-        );
-      }
-    },
-    {
-      title: "当前驾驶员",
-      dataIndex: "driverNames",
-      key: "driverNames",
-      render: (driverNames, record) => {
-        if (!driverNames || driverNames.length === 0) {
-          return "-";
-        }
-        
-        // 如果是字符串，尝试解析成数组
-        let drivers = driverNames;
-        if (typeof driverNames === 'string') {
-          try {
-            drivers = driverNames.split(',');
-          } catch (e) {
-            drivers = [driverNames];
-          }
-        }
-        
-        // 显示驾驶员列表
-        return (
-          <Space direction="vertical" size="small">
-            {Array.isArray(drivers) ? (
-              drivers.map(name => <Tag key={name} color="cyan">{name}</Tag>)
-            ) : (
-              <Tag color="cyan">{driverNames}</Tag>
-            )}
           </Space>
         );
       }
@@ -332,7 +297,7 @@ const Vehicle = () => {
     {
       title: "操作",
       key: "action",
-      width: 120,
+      width: 180,
       render: (_, record) => (
         <Space size="small">
           <Tooltip title="编辑">
@@ -341,6 +306,15 @@ const Vehicle = () => {
               icon={<EditOutlined />}
               size="small"
               onClick={() => handleEdit(record.vehicleId)}
+            />
+          </Tooltip>
+          <Tooltip title="管理可用性">
+            <Button
+              type="primary"
+              icon={<CalendarOutlined />}
+              size="small"
+              onClick={() => showAvailabilityModal(record)}
+              style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
             />
           </Tooltip>
           <Tooltip title="删除">
@@ -425,14 +399,6 @@ const Vehicle = () => {
                 </Form.Item>
               </Col>
               <Col span={6}>
-                <Form.Item name="driverName" label="驾驶员姓名">
-                  <Input
-                    allowClear
-                    placeholder="请输入驾驶员姓名"
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={6}>
                 <Form.Item name="location" label="车辆地址">
                   <Input
                     allowClear
@@ -450,11 +416,11 @@ const Vehicle = () => {
                 </Form.Item>
               </Col>
               <Col span={6}>
-                <Form.Item name="regoExpiryDate" label="申请日期">
+                <Form.Item name="regoExpiryDate" label="注册到期日期">
                   <DatePicker
                     allowClear
                     style={{ width: '100%' }}
-                    placeholder="请选择申请日期"
+                    placeholder="请选择注册到期日期"
                   />
                 </Form.Item>
               </Col>
@@ -502,6 +468,13 @@ const Vehicle = () => {
           scroll={{ x: 1100 }}
         />
       </Card>
+
+      {/* 可用性管理对话框 */}
+      <VehicleAvailabilityModal
+        visible={availabilityModalVisible}
+        onCancel={() => setAvailabilityModalVisible(false)}
+        vehicle={currentVehicle}
+      />
     </div>
   );
 };

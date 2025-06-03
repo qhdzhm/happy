@@ -40,7 +40,7 @@ export const enableOrDisableAgent = (status, id) => {
   return request({
     url: `/admin/agent/status/${status}`,
     method: 'post',
-    params: { id }
+    data: { id }
   })
 }
 
@@ -55,8 +55,17 @@ export const getAgentById = (id) => {
 // 更新代理商折扣率
 export const updateAgentDiscountRate = (id, discountRate) => {
   return request({
-    url: `/admin/agent/discount`,
+    url: `/admin/agent`,
     method: 'put',
     data: { id, discountRate }
+  })
+}
+
+// 重置代理商密码
+export const resetAgentPassword = (id, password) => {
+  return request({
+    url: `/admin/agent/resetPassword`,
+    method: 'put',
+    data: { id, password }
   })
 } 

@@ -1,0 +1,81 @@
+.customer-service-page {
+  padding: 24px;
+
+  .ant-card {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+  }
+
+  .ant-statistic {
+    .ant-statistic-title {
+      color: #666;
+      font-size: 14px;
+    }
+    
+    .ant-statistic-content {
+      font-size: 24px;
+      font-weight: 600;
+    }
+  }
+
+  .ant-table {
+    .ant-tag {
+      margin-bottom: 2px;
+    }
+  }
+
+  .service-status-bar {
+    width: 60px;
+    height: 6px;
+    background-color: #f0f0f0;
+    border-radius: 3px;
+    overflow: hidden;
+
+    .progress {
+      height: 100%;
+      transition: all 0.3s ease;
+      border-radius: 3px;
+
+      &.normal {
+        background-color: #52c41a;
+      }
+
+      &.warning {
+        background-color: #faad14;
+      }
+
+      &.danger {
+        background-color: #ff4d4f;
+      }
+    }
+  }
+
+  .online-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .action-buttons {
+    .ant-btn {
+      padding: 0;
+      height: auto;
+      border: none;
+      box-shadow: none;
+
+      &:hover {
+        background: none;
+      }
+    }
+  }
+
+  .modal-form {
+    .ant-row {
+      margin-bottom: 16px;
+    }
+    
+    .ant-form-item {
+      margin-bottom: 16px;
+    }
+  }
+} 

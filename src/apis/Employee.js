@@ -189,3 +189,15 @@ export const getEmployeeAssignedVehicle = (employeeId) => {
     method: "get",
   });
 };
+
+/**
+ * 通过员工ID获取导游信息
+ * @param {number} employeeId 员工ID
+ * @returns {Promise} 导游信息
+ */
+export const getGuideByEmployeeId = (employeeId) => {
+  return request({
+    url: `/admin/guides/by-employee/${employeeId}`,
+    method: 'GET'
+  });
+};

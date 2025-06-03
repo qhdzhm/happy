@@ -1,0 +1,135 @@
+.service-workbench {
+  height: 100%;
+  
+  .chat-container {
+    height: calc(100vh - 200px);
+    display: flex;
+    flex-direction: column;
+    
+    .chat-header {
+      padding: 16px;
+      border-bottom: 1px solid #f0f0f0;
+      background: #fafafa;
+    }
+    
+    .messages-container {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      background: #ffffff;
+      
+      .message {
+        display: flex;
+        margin-bottom: 16px;
+        
+        &.user-message {
+          justify-content: flex-start;
+          
+          .message-content {
+            .message-bubble {
+              background: #f0f0f0;
+              color: #333;
+              border-radius: 18px 18px 18px 4px;
+            }
+          }
+        }
+        
+        &.service-message {
+          justify-content: flex-end;
+          
+          .message-avatar {
+            order: 2;
+            margin-left: 8px;
+            margin-right: 0;
+          }
+          
+          .message-content {
+            order: 1;
+            align-items: flex-end;
+            
+            .message-bubble {
+              background: #1890ff;
+              color: white;
+              border-radius: 18px 18px 4px 18px;
+            }
+            
+            .message-time {
+              text-align: right;
+            }
+          }
+        }
+        
+        .message-avatar {
+          margin-right: 8px;
+          flex-shrink: 0;
+        }
+        
+        .message-content {
+          display: flex;
+          flex-direction: column;
+          max-width: 70%;
+          
+          .message-bubble {
+            padding: 8px 12px;
+            margin-bottom: 4px;
+            word-wrap: break-word;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+          }
+          
+          .message-time {
+            font-size: 12px;
+            color: #999;
+          }
+        }
+      }
+    }
+    
+    .input-container {
+      padding: 16px;
+      border-top: 1px solid #f0f0f0;
+      background: #fafafa;
+    }
+  }
+  
+  .no-session {
+    height: calc(100vh - 200px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fafafa;
+  }
+}
+
+// 滚动条样式
+.messages-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+// 响应式设计
+@media (max-width: 768px) {
+  .service-workbench {
+    .chat-container {
+      .messages-container {
+        .message {
+          .message-content {
+            max-width: 85%;
+          }
+        }
+      }
+    }
+  }
+} 

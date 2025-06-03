@@ -104,3 +104,53 @@ export function pastMonth() {
 
   return [monthStart, monthEnd];
 }
+
+/**
+ * 通用日期格式化函数，处理不同类型的日期值
+ * @param {Date|string|number} dateValue - 日期值
+ * @param {string} format - 格式化模式，默认为 'YYYY-MM-DD'
+ * @returns {string} 格式化后的日期字符串
+ */
+export function formatDateValue(dateValue, format = 'YYYY-MM-DD') {
+  if (!dateValue) return '';
+  
+  let date;
+  
+  // 处理时间戳
+  if (typeof dateValue === 'number') {
+    date = new Date(dateValue);
+  }
+  // 处理字符串
+  else if (typeof dateValue === 'string') {
+    // 尝试将字符串转换为日期
+    date = new Date(dateValue);
+    // 如果只需要日期部分，可以直接返回前10个字符
+    if (format === 'YYYY-MM-DD' && dateValue.length >= 10) {
+      return dateValue.substring(0, 10);
+    }
+  }
+  // 处理Date对象
+  else if (dateValue instanceof Date) {
+    date = dateValue;
+  }
+  else {
+    return '';
+  }
+  
+  // 检查日期是否有效
+  if (isNaN(date.getTime())) {
+    return '';
+  }
+  
+  // 根据指定格式返回日期字符串
+  if (format === 'YYYY-MM-DD') {
+    return date.toISOString().substring(0, 10);
+  }
+  else if (format === 'YYYY-MM-DD HH:mm:ss') {
+    return date.toISOString().replace('T', ' ').substring(0, 19);
+  }
+  else {
+    // 使用已有的dateFormat函数处理其他格式
+    return dateFormat(format, date.getTime());
+  }
+}

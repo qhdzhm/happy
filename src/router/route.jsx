@@ -14,12 +14,26 @@ import ThemeManagement from "@/pages/DayTour/ThemeManagement/ThemeManagement";
 import SuitableManagement from "@/pages/DayTour/SuitableManagement/SuitableManagement";
 import GroupTours from "@/pages/GroupTour/GroupTours";
 import GroupTourDetail from "@/pages/GroupTour/GroupTourDetail/GroupTourDetail";
-import BookingManagement from "@/pages/Booking/BookingManagement";
 import Vehicle from "@/pages/Vehicle/Vehicle";
 import AddVehicle from "@/pages/Vehicle/AddVehicle/AddVehicle";
 import Employee from "@/pages/Employee/Employee";
 import AddEmployee from "@/pages/Employee/AddEmployee/AddEmployee";
 import { CarOutlined } from "@ant-design/icons";
+import AgentCreditManagement from "@/pages/Credit/AgentCredit";
+import TransactionListPage from "@/pages/Credit/TransactionList";
+
+// 导入订单管理相关组件
+import OrderList from "@/pages/orders/OrderList";
+import OrderDetail from "@/pages/orders/OrderDetail";
+import OrderEdit from "@/pages/orders/OrderEdit";
+
+// 导入行程安排组件
+import TourArrangement from "@/pages/TourArrangement";
+
+// 导入客服管理组件
+import CustomerService from "@/pages/CustomerService/CustomerService";
+import ServiceWorkbench from "@/pages/CustomerService/ServiceWorkbench";
+import SessionManagement from "@/pages/CustomerService/SessionManagement";
 
 const router = createBrowserRouter([
   {
@@ -47,14 +61,44 @@ const router = createBrowserRouter([
           icon: "PieChartOutlined" 
         }
       },
+      
+      // 订单管理相关路由
       {
-        path: "/booking",
-        element: <BookingManagement />,
+        path: "/orders",
+        element: <OrderList />,
         meta: {
-          title: "订单管理",
+          title: "订单列表",
           icon: "OrderedListOutlined" 
         }
       },
+      {
+        path: "/orders/detail/:bookingId",
+        element: <OrderDetail />,
+        meta: {
+          title: "订单详情",
+          hidden: true
+        }
+      },
+      {
+        path: "/orders/edit/:bookingId",
+        element: <OrderEdit />,
+        meta: {
+          title: "编辑订单",
+          hidden: true
+        }
+      },
+      
+      // 行程安排相关路由
+      {
+        path: "/tour-arrangement",
+        element: <TourArrangement />,
+        meta: {
+          title: "行程安排",
+          icon: "ScheduleOutlined"
+        }
+      },
+      
+      // 产品管理路由
       {
         path: "/daytour",
         element: <DayTours />,
@@ -119,6 +163,8 @@ const router = createBrowserRouter([
           hidden: true
         }
       },
+      
+      // 车辆管理路由
       {
         path: "/vehicle",
         element: <Vehicle />,
@@ -143,6 +189,8 @@ const router = createBrowserRouter([
           hidden: true
         }
       },
+      
+      // 员工管理路由
       {
         path: "/employee",
         element: <Employee />,
@@ -167,6 +215,8 @@ const router = createBrowserRouter([
           hidden: true
         }
       },
+      
+      // 代理商管理路由
       {
         path: "/agent",
         element: <Agents />,
@@ -183,6 +233,26 @@ const router = createBrowserRouter([
           hidden: true
         }
       },
+      
+      // 信用额度管理路由
+      {
+        path: "/credit",
+        element: <AgentCreditManagement />,
+        meta: {
+          title: "信用额度管理",
+          icon: "BankOutlined" 
+        }
+      },
+      {
+        path: "/credit/transactions",
+        element: <TransactionListPage />,
+        meta: {
+          title: "信用交易记录",
+          icon: "TransactionOutlined" 
+        }
+      },
+      
+      // 客户管理路由
       {
         path: "/user",
         element: <Users />,
@@ -197,6 +267,32 @@ const router = createBrowserRouter([
         meta: {
           title: "添加客户",
           hidden: true
+        }
+      },
+      
+      // 客服管理路由
+      {
+        path: "/customer-service",
+        element: <CustomerService />,
+        meta: {
+          title: "客服管理",
+          icon: "CustomerServiceOutlined" 
+        }
+      },
+      {
+        path: "/customer-service/workbench",
+        element: <ServiceWorkbench />,
+        meta: {
+          title: "客服工作台",
+          icon: "MessageOutlined"
+        }
+      },
+      {
+        path: "/customer-service/sessions",
+        element: <SessionManagement />,
+        meta: {
+          title: "会话管理",
+          icon: "CommentOutlined"
         }
       }
     ],
