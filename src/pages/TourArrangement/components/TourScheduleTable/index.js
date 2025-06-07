@@ -1,15 +1,44 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Empty, Spin, Tooltip, message, Button, Tag, Modal, Popover, Table, Form, Select, Dropdown, Menu } from 'antd';
-import { SaveOutlined, UserOutlined, HomeOutlined, IdcardOutlined, PhoneOutlined, TeamOutlined, LeftOutlined, RightOutlined, EnvironmentOutlined, CalendarOutlined, CreditCardOutlined, CommentOutlined, CarOutlined, UserSwitchOutlined, SettingOutlined } from '@ant-design/icons';
+import { Empty, Spin, Tooltip, message, Button, Tag, Modal, Popover, Table, Form, Select, Dropdown, Menu, Input } from 'antd';
+import { SaveOutlined, UserOutlined, HomeOutlined, IdcardOutlined, PhoneOutlined, TeamOutlined, EnvironmentOutlined, CalendarOutlined, CreditCardOutlined, CommentOutlined, CarOutlined, UserSwitchOutlined, SettingOutlined, LeftOutlined, RightOutlined, EditOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 import moment from 'moment';
 import './index.scss';
 import axios from 'axios';
 import { getEmployeesByPage } from '@/apis/Employee';
-import { getAvailableVehicles } from '@/apis/vehicle';
-import { assignGuideAndVehicle } from '@/api/tourSchedule';
+import { getAvailableGuides, getAvailableVehicles, checkAssignmentStatus, getAssignmentByDateAndLocation, cancelAssignment } from '@/api/guideAssignment';
+import { assignGuideAndVehicle, saveSchedule, getSchedulesByBookingId, saveBatchSchedules } from '@/api/tourSchedule';
+import { updateOrder } from '@/apis/orderApi';
 import GuideVehicleAssignModal from '../../../../components/GuideVehicleAssignModal';
+import AssignmentDetailModal from '../../../../components/AssignmentDetailModal';
 
-const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule }) => {
+const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
+  // 🔍 入口数据调试
+  console.log('🔍 [TourScheduleTable] 接收到的data:', {
+    数据类型: typeof data,
+    是否为数组: Array.isArray(data),
+    数据长度: data?.length,
+    前2条数据样例: data?.slice(0, 2)?.map(item => ({
+      订单ID: item.id,
+      客户信息: item.customer,
+      日期数据键列表: Object.keys(item.dates || {}),
+      日期数据详情: Object.keys(item.dates || {}).map(date => ({
+        日期: date,
+        数据键列表: Object.keys(item.dates[date] || {}),
+        重要字段: {
+          contactPerson: item.dates[date]?.contactPerson,
+          contactPhone: item.dates[date]?.contactPhone,
+          adultCount: item.dates[date]?.adultCount,
+          childCount: item.dates[date]?.childCount,
+          pickupLocation: item.dates[date]?.pickupLocation,
+          dropoffLocation: item.dates[date]?.dropoffLocation
+        }
+      }))
+    }))
+  });
+  
+  const navigate = useNavigate();
   const [dates, setDates] = useState([]);
   const [tourGroups, setTourGroups] = useState([]);
   const [draggedItem, setDraggedItem] = useState(null);
@@ -17,8 +46,9 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [originalData, setOriginalData] = useState(null);
   const [activeTooltip, setActiveTooltip] = useState(null);
-  const [visibleColumnStart, setVisibleColumnStart] = useState(0);
-  const [visibleColumnCount, setVisibleColumnCount] = useState(4); // 默认显示4列
+  // 移除导航控制相关状态 - 改用普通滚动条
+  // const [visibleColumnStart, setVisibleColumnStart] = useState(0);
+  // const [visibleColumnCount, setVisibleColumnCount] = useState(4); // 默认显示4列
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [dateLocationStats, setDateLocationStats] = useState([]);
@@ -35,8 +65,24 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
   const [guideVehicleModalVisible, setGuideVehicleModalVisible] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState([]);
   
+  // 分配详情弹窗状态
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [currentAssignmentData, setCurrentAssignmentData] = useState(null);
+  
+  // 编辑排团表信息弹窗状态
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editForm] = Form.useForm();
+  const [currentEditData, setCurrentEditData] = useState(null);
+  
   // 横向滚动容器引用
   const scrollContainerRef = useRef(null);
+  
+  // 横向导航状态
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   
   // Refs for tracking draggable elements
   const dragItemRef = useRef(null);
@@ -120,8 +166,8 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
       } else if (order.tourStartDate && order.tourEndDate) {
         // 尝试使用tourStartDate和tourEndDate
         try {
-          startDate = moment(order.tourStartDate).format('YYYY-MM-DD');
-          endDate = moment(order.tourEndDate).format('YYYY-MM-DD');
+          startDate = dayjs(order.tourStartDate).format('YYYY-MM-DD');
+          endDate = dayjs(order.tourEndDate).format('YYYY-MM-DD');
         } catch (e) {
           console.error('日期解析错误:', e);
         }
@@ -135,7 +181,7 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
       
       // 如果仍然没有日期，使用当前日期（作为最后的回退）
       if (!startDate || !endDate) {
-        const today = moment().format('YYYY-MM-DD');
+        const today = dayjs().format('YYYY-MM-DD');
         startDate = today;
         endDate = today;
         console.warn(`订单 ${order.id} 无法提取日期范围，使用当前日期作为替代`);
@@ -172,14 +218,14 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
         let hasOverlap = false;
         for (const existingRange of columns[columnIndex]) {
           // 转换为日期对象进行比较，确保比较的是日期而不是字符串
-          const orderStart = moment(orderRange.startDate);
-          const orderEnd = moment(orderRange.endDate);
-          const existingStart = moment(existingRange.startDate);
-          const existingEnd = moment(existingRange.endDate);
+          const orderStart = dayjs(orderRange.startDate);
+          const orderEnd = dayjs(orderRange.endDate);
+          const existingStart = dayjs(existingRange.startDate);
+          const existingEnd = dayjs(existingRange.endDate);
           
           // 更精确的重叠检测 - 如果两个日期范围有重叠
           // 一个订单的结束日期大于等于另一个订单的开始日期，且一个订单的开始日期小于等于另一个订单的结束日期
-          if ((orderStart.isSameOrBefore(existingEnd) && orderEnd.isSameOrAfter(existingStart))) {
+          if ((orderStart.isBefore(existingEnd) || orderStart.isSame(existingEnd)) && (orderEnd.isAfter(existingStart) || orderEnd.isSame(existingStart))) {
             hasOverlap = true;
             console.log(`订单 ${orderRange.id} 与 ${existingRange.id} 在列 ${columnIndex} 重叠`);
             console.log(`- 订单时间: ${orderStart.format('YYYY-MM-DD')} 至 ${orderEnd.format('YYYY-MM-DD')}`);
@@ -472,7 +518,7 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
   };
 
   // 处理拖拽放置
-  const handleDrop = (e, targetGroupId, targetSegmentIndex, targetDate, targetIndex) => {
+  const handleDrop = async (e, targetGroupId, targetSegmentIndex, targetDate, targetIndex) => {
     e.preventDefault();
     e.stopPropagation();
     
@@ -490,30 +536,174 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
       return;
     }
     
-    // 执行位置交换
-    const updatedGroups = swapLocations(
-      targetGroupId,
-      targetSegmentIndex,
-      draggedItem.date,
-      targetDate
-    );
-    
-    if (updatedGroups) {
-      // 提示用户
-      message.success('已调整行程顺序，正在自动保存...');
-      
-      // 自动保存更改
-      if (onUpdate) {
-        setTimeout(() => {
-          onUpdate({
-            type: 'saveAll',
-            updatedData: updatedGroups
-          });
-        }, 300);
-      }
+    // 🛡️ 拖拽前检测：查找涉及的地点
+    const sourceGroup = tourGroups.find(group => group.id === targetGroupId);
+    if (!sourceGroup) {
+      handleDragEnd(e);
+      return;
     }
     
-    handleDragEnd(e);
+    const sourceLocation = sourceGroup.locationsByDate[draggedItem.date];
+    const targetLocation = sourceGroup.locationsByDate[targetDate];
+    
+    if (!sourceLocation || !targetLocation) {
+      handleDragEnd(e);
+      return;
+    }
+    
+    // 提取地点名称
+    const sourceLocationName = extractLocationName(sourceLocation.name || sourceLocation.location?.name || '');
+    const targetLocationName = extractLocationName(targetLocation.name || targetLocation.location?.name || '');
+    
+    try {
+      // 检查涉及的日期和地点是否已分配导游车辆
+      const [sourceAssignment, targetAssignment] = await Promise.all([
+        getAssignmentByDateAndLocation(draggedItem.date, sourceLocationName).catch(() => null),
+        getAssignmentByDateAndLocation(targetDate, targetLocationName).catch(() => null)
+      ]);
+      
+      // 检查是否有任何一个位置已分配
+      const hasSourceAssignment = sourceAssignment?.code === 1 && sourceAssignment?.data?.length > 0;
+      const hasTargetAssignment = targetAssignment?.code === 1 && targetAssignment?.data?.length > 0;
+      
+      if (hasSourceAssignment || hasTargetAssignment) {
+        // 准备需要清除的分配信息
+        const affectedAssignments = [];
+        
+        if (hasSourceAssignment) {
+          affectedAssignments.push({
+            id: sourceAssignment.data[0].id,
+            date: draggedItem.date,
+            location: sourceLocationName,
+            guideName: sourceAssignment.data[0]?.guideName || '未知'
+          });
+        }
+        
+        if (hasTargetAssignment) {
+          affectedAssignments.push({
+            id: targetAssignment.data[0].id,
+            date: targetDate,
+            location: targetLocationName,
+            guideName: targetAssignment.data[0]?.guideName || '未知'
+          });
+        }
+        
+        // 生成显示信息
+        const sourceAssignmentInfo = hasSourceAssignment ? 
+          `${draggedItem.date} ${sourceLocationName}（导游：${sourceAssignment.data[0]?.guideName || '未知'}）` : '';
+        const targetAssignmentInfo = hasTargetAssignment ? 
+          `${targetDate} ${targetLocationName}（导游：${targetAssignment.data[0]?.guideName || '未知'}）` : '';
+        
+        const assignmentList = [sourceAssignmentInfo, targetAssignmentInfo].filter(Boolean);
+        
+        // 使用Antd的Modal.confirm
+        Modal.confirm({
+          title: '⚠️ 检测到已分配的行程',
+          content: (
+            <div>
+              <p>以下行程已分配导游和车辆：</p>
+              <ul style={{ marginLeft: 20, color: '#ff4d4f' }}>
+                {assignmentList.map((info, index) => (
+                  <li key={index}>{info}</li>
+                ))}
+              </ul>
+              <p style={{ marginTop: 16, color: '#666' }}>
+                拖拽调整会影响现有分配，是否继续？
+              </p>
+              <p style={{ fontSize: '12px', color: '#999' }}>
+                继续操作将自动清除这些分配，之后需要重新分配导游和车辆
+              </p>
+            </div>
+          ),
+          okText: '继续拖拽并清除分配',
+          cancelText: '取消',
+          okType: 'danger',
+          onOk: () => {
+            // 用户确认继续，执行拖拽操作并传递需要清除的分配
+            performDragOperation(targetGroupId, targetSegmentIndex, targetDate, affectedAssignments);
+          },
+          onCancel: () => {
+            // 用户取消，结束拖拽
+            handleDragEnd(e);
+          }
+        });
+        
+        return; // 等待用户确认，不继续执行
+      }
+    } catch (error) {
+      console.error('检查分配状态时出错:', error);
+      // 如果检查失败，询问用户是否继续
+             Modal.confirm({
+         title: '无法检查分配状态',
+         content: '无法确认该行程是否已分配导游和车辆，是否继续拖拽操作？',
+         okText: '继续',
+         cancelText: '取消',
+         onOk: () => {
+           performDragOperation(targetGroupId, targetSegmentIndex, targetDate, []);
+         },
+         onCancel: () => {
+           handleDragEnd(e);
+         }
+       });
+      return;
+    }
+    
+         // 如果没有分配，直接执行拖拽操作
+     performDragOperation(targetGroupId, targetSegmentIndex, targetDate, []);
+  };
+  
+  // 执行拖拽操作的函数
+  const performDragOperation = async (targetGroupId, targetSegmentIndex, targetDate, affectedAssignments = []) => {
+    try {
+      // 🗑️ 如果有受影响的分配，先清除它们
+      if (affectedAssignments.length > 0) {
+        message.loading('正在清除相关分配...', 0);
+        
+        for (const assignment of affectedAssignments) {
+          try {
+            const result = await cancelAssignment(assignment.id, '行程拖拽调整自动清除');
+            if (result?.code === 1) {
+              console.log(`✅ 已清除分配: ${assignment.date} ${assignment.location} (导游: ${assignment.guideName})`);
+            } else {
+              console.error(`❌ 清除分配失败: ${assignment.date} ${assignment.location}`, result);
+            }
+          } catch (error) {
+            console.error(`❌ 清除分配异常: ${assignment.date} ${assignment.location}`, error);
+          }
+        }
+        
+        message.destroy(); // 清除loading消息
+        message.success(`已清除 ${affectedAssignments.length} 个相关分配`);
+      }
+      
+      // 执行位置交换
+      const updatedGroups = swapLocations(
+        targetGroupId,
+        targetSegmentIndex,
+        draggedItem.date,
+        targetDate
+      );
+      
+      if (updatedGroups) {
+        // 提示用户
+        message.success('已调整行程顺序，正在自动保存...');
+        
+        // 自动保存更改
+        if (onUpdate) {
+          setTimeout(() => {
+            onUpdate({
+              type: 'saveAll',
+              updatedData: updatedGroups
+            });
+          }, 300);
+        }
+      }
+    } catch (error) {
+      console.error('拖拽操作失败:', error);
+      message.error('拖拽操作失败: ' + (error.message || '未知错误'));
+    } finally {
+      handleDragEnd(null);
+    }
   };
 
   // 处理拖拽放置区域进入
@@ -578,7 +768,7 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
     // 简化地点名称映射
     const simplifiedNames = {
       '霍巴特市游': '霍巴特',
-      '霍巴特市区': '霍巴特',
+      '霍巴特市区': '霍巴特',  
       '霍巴特': '霍巴特',
       '布鲁尼岛': '布鲁尼',
       '酒杯湾': '酒杯湾',
@@ -597,17 +787,19 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
       '珊瑚湾': '珊瑚湾'
     };
     
-    // 直接提取冒号后的部分，不保留"第几天"的前缀
-    const colonSplit = title.split(/[:：]\s*/);
-    let locationName = '';
+    let locationName = title;
     
+    // 先移除"第X天:"的前缀（兼容数字和中文数字）
+    locationName = locationName.replace(/^第[一二三四五六七八九十\d]+天[:：]\s*/, '');
+    
+    // 如果还有冒号，提取冒号后的部分
+    const colonSplit = locationName.split(/[:：]\s*/);
     if (colonSplit.length > 1) {
-      // 返回冒号后的内容，去掉"一日游"等后缀
-      locationName = colonSplit[1].replace('一日游', '').trim();
-    } else {
-      // 如果没有冒号，直接返回原标题
-      locationName = title;
+      locationName = colonSplit[1];
     }
+    
+    // 去掉"一日游"等后缀
+    locationName = locationName.replace('一日游', '').trim();
     
     // 检查是否有简化名称
     for (const [key, value] of Object.entries(simplifiedNames)) {
@@ -709,7 +901,7 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
     // 创建日期行
     const datesArray = [];
     let currentDate = dateRange[0].clone();
-    while (currentDate.isSameOrBefore(dateRange[1])) {
+    while (currentDate.isBefore(dateRange[1]) || currentDate.isSame(dateRange[1])) {
       const dateStr = currentDate.format('YYYY-MM-DD');
       const dayName = currentDate.format('ddd');
       const monthDay = currentDate.format('MM/DD');
@@ -811,87 +1003,233 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
     setTourGroups(updatedGroups);
   }, [dates]); // 只在dates改变时重新计算，避免无限循环
 
-  // 处理初始化行程
-  const handleInitSchedule = () => {
-    if (onInitSchedule) {
-      onInitSchedule();
-    }
-  };
 
-  // 向左滚动
+
+  // 更新横向导航状态
+  const updateNavigation = useCallback(() => {
+    if (!scrollContainerRef.current) return;
+    
+    const container = scrollContainerRef.current;
+    const scrollLeft = container.scrollLeft;
+    const scrollWidth = container.scrollWidth;
+    const clientWidth = container.clientWidth;
+    
+    if (scrollWidth <= clientWidth) {
+      // 不需要滚动
+      setScrollProgress(100);
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      setCurrentPage(1);
+      setTotalPages(1);
+      return;
+    }
+    
+    // 计算滚动进度
+    const maxScrollLeft = scrollWidth - clientWidth;
+    const progress = Math.min(100, Math.max(0, (scrollLeft / maxScrollLeft) * 100));
+    setScrollProgress(progress);
+    
+    // 更新左右按钮状态（增加一些容错）
+    const canLeft = scrollLeft > 1; // 给一点容错空间
+    const canRight = scrollLeft < (maxScrollLeft - 1); // 给一点容错空间
+    
+    setCanScrollLeft(canLeft);
+    setCanScrollRight(canRight);
+    
+    // 简化页数计算 - 基于滚动比例
+    const pageSize = 0.8; // 每次滚动80%，所以页面有20%重叠
+    const totalScrollPages = Math.ceil(1 / pageSize); // 简单估算
+    const currentScrollPage = Math.floor(progress / (100 / totalScrollPages)) + 1;
+    
+    // 至少显示2页，最多显示5页
+    const calculatedTotalPages = Math.max(2, Math.min(5, Math.ceil(scrollWidth / clientWidth)));
+    const calculatedCurrentPage = Math.max(1, Math.min(calculatedTotalPages, 
+      Math.floor((progress / 100) * calculatedTotalPages) + 1));
+    
+    setCurrentPage(calculatedCurrentPage);
+    setTotalPages(calculatedTotalPages);
+  }, []);
+
+  // 监听滚动事件
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    
+    let timeoutId = null;
+    
+    const handleScroll = () => {
+      // 清除之前的定时器
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      
+      // 设置防抖，避免过度频繁更新
+      timeoutId = setTimeout(() => {
+        updateNavigation();
+      }, 50); // 50ms 防抖
+    };
+    
+    container.addEventListener('scroll', handleScroll);
+    updateNavigation(); // 初始更新
+    
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [updateNavigation]);
+
+  // 组件挂载后立即更新导航状态
+  useEffect(() => {
+    // 立即更新一次
+    updateNavigation();
+    
+    // 延迟再更新一次，确保DOM已完全渲染
+    const timer = setTimeout(() => {
+      updateNavigation();
+    }, 200);
+    
+    return () => clearTimeout(timer);
+  }, [dates, tourGroups, updateNavigation]);
+
+  // 窗口大小变化时重新计算
+  useEffect(() => {
+    const handleResize = () => {
+      setTimeout(() => {
+        updateNavigation();
+      }, 100);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updateNavigation]);
+
+  // 左右导航按钮功能
   const scrollLeft = () => {
-    if (visibleColumnStart > 0) {
-      setVisibleColumnStart(prev => Math.max(0, prev - 1));
+    if (!scrollContainerRef.current || !canScrollLeft) {
+      return;
     }
+    
+    const container = scrollContainerRef.current;
+    const scrollStep = container.clientWidth * 0.8; // 每次滚动80%的可视区域
+    const newScrollLeft = Math.max(0, container.scrollLeft - scrollStep);
+    
+    container.scrollTo({
+      left: newScrollLeft,
+      behavior: 'smooth'
+    });
   };
 
-  // 向右滚动
   const scrollRight = () => {
-    const maxVisibleStart = dates.length - visibleColumnCount;
-    if (visibleColumnStart < maxVisibleStart) {
-      setVisibleColumnStart(prev => Math.min(maxVisibleStart, prev + 1));
+    if (!scrollContainerRef.current || !canScrollRight) {
+      return;
     }
+    
+    const container = scrollContainerRef.current;
+    const scrollStep = container.clientWidth * 0.8; // 每次滚动80%的可视区域
+    const maxScrollLeft = container.scrollWidth - container.clientWidth;
+    const newScrollLeft = Math.min(maxScrollLeft, container.scrollLeft + scrollStep);
+    
+    container.scrollTo({
+      left: newScrollLeft,
+      behavior: 'smooth'
+    });
   };
 
-  // 渲染行程表格
-  const renderScheduleTable = () => {
-    return (
-      <div className="schedule-table">
-        {/* 日期头部 */}
-        <div className="date-header" style={{ display: 'flex' }}>
-          {dates.slice(visibleColumnStart, visibleColumnStart + visibleColumnCount).map(date => (
-            renderDateColumn(moment(date.date))
-          ))}
-        </div>
-        
-        {/* 团队行程 */}
-        <div className="tour-groups">
-          {tourGroups.map(group => (
-            <div key={group.id} className="tour-group-row">
-              {/* 团队信息 */}
-              <div className="group-info" style={{ padding: '10px', borderBottom: '1px solid #e8e8e8' }}>
-                <div><strong>{group.customer?.name || group.name || '未命名团队'}</strong></div>
-                <div><TeamOutlined /> {group.customer?.pax || group.pax || '0'} 人</div>
-              </div>
-              
-              {/* 团队行程单元格 */}
-              <div className="schedule-cells" style={{ display: 'flex' }}>
-                {dates.slice(visibleColumnStart, visibleColumnStart + visibleColumnCount).map(date => {
-                  const schedule = group.locationsByDate[date.date];
-                  return (
-                    <div key={`${group.id}-${date.date}`} className="schedule-cell" style={{ 
-                      width: '80px', 
-                      padding: '5px',
-                      borderRight: '1px solid #e8e8e8',
-                      borderBottom: '1px solid #e8e8e8'
-                    }}>
-                      {schedule && (
-                        <Tooltip title={schedule.location?.name || schedule.name || ''}>
-                          <div style={{ 
-                            backgroundColor: schedule.location?.color || schedule.color || '#1890ff',
-                            color: 'white',
-                            padding: '3px 6px',
-                            borderRadius: '3px',
-                            fontSize: '12px',
-                            marginBottom: '3px'
-                          }}>
-                            {extractLocationName(schedule.location?.name || schedule.name || '')}
-                            <div style={{ marginTop: '2px' }}>
-                              <TeamOutlined /> {group.customer?.pax || group.pax || '0'}
-                            </div>
-                          </div>
-                        </Tooltip>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+  // 快捷跳转到指定页
+  const jumpToPage = (page) => {
+    if (!scrollContainerRef.current || totalPages <= 1) return;
+    
+    const container = scrollContainerRef.current;
+    const maxScrollLeft = container.scrollWidth - container.clientWidth;
+    
+    // 确保页数在有效范围内
+    const validPage = Math.max(1, Math.min(totalPages, page));
+    const targetProgress = (validPage - 1) / (totalPages - 1);
+    const targetScrollLeft = Math.round(targetProgress * maxScrollLeft);
+    
+
+    
+    container.scrollTo({
+      left: targetScrollLeft,
+      behavior: 'smooth'
+    });
   };
+
+  // 移除导航按钮相关函数 - 改用普通滚动条
+  // const scrollLeft = () => {
+  //   if (visibleColumnStart > 0) {
+  //     setVisibleColumnStart(prev => Math.max(0, prev - 1));
+  //   }
+  // };
+
+  // const scrollRight = () => {
+  //   const maxVisibleStart = dates.length - visibleColumnCount;
+  //   if (visibleColumnStart < maxVisibleStart) {
+  //     setVisibleColumnStart(prev => Math.min(maxVisibleStart, prev + 1));
+  //   }
+  // };
+
+  // 移除不再使用的renderScheduleTable函数 - 现在使用新的滚动列表布局
+  // const renderScheduleTable = () => {
+  //   return (
+  //     <div className="schedule-table">
+  //       {/* 日期头部 */}
+  //       <div className="date-header" style={{ display: 'flex' }}>
+  //         {dates.slice(visibleColumnStart, visibleColumnStart + visibleColumnCount).map(date => (
+  //           renderDateColumn(dayjs(date.date))
+  //         ))}
+  //       </div>
+  //       
+  //       {/* 团队行程 */}
+  //       <div className="tour-groups">
+  //         {tourGroups.map(group => (
+  //           <div key={group.id} className="tour-group-row">
+  //             {/* 团队信息 */}
+  //             <div className="group-info" style={{ padding: '10px', borderBottom: '1px solid #e8e8e8' }}>
+  //               <div><strong>{group.customer?.name || group.name || '未命名团队'}</strong></div>
+  //               <div><TeamOutlined /> {group.customer?.pax || group.pax || '0'} 人</div>
+  //             </div>
+  //             
+  //             {/* 团队行程单元格 */}
+  //             <div className="schedule-cells" style={{ display: 'flex' }}>
+  //               {dates.slice(visibleColumnStart, visibleColumnStart + visibleColumnCount).map(date => {
+  //                 const schedule = group.locationsByDate[date.date];
+  //                 return (
+  //                   <div key={`${group.id}-${date.date}`} className="schedule-cell" style={{ 
+  //                     width: '80px', 
+  //                     padding: '5px',
+  //                     borderRight: '1px solid #e8e8e8',
+  //                     borderBottom: '1px solid #e8e8e8'
+  //                   }}>
+  //                     {schedule && (
+  //                       <Tooltip title={schedule.location?.name || schedule.name || ''}>
+  //                         <div style={{ 
+  //                           backgroundColor: schedule.location?.color || schedule.color || '#1890ff',
+  //                           color: 'white',
+  //                           padding: '3px 6px',
+  //                           borderRadius: '3px',
+  //                           fontSize: '12px',
+  //                           marginBottom: '3px'
+  //                         }}>
+  //                           {extractLocationName(schedule.location?.name || schedule.name || '')}
+  //                           <div style={{ marginTop: '2px' }}>
+  //                             <TeamOutlined /> {group.customer?.pax || group.pax || '0'}
+  //                           </div>
+  //                         </div>
+  //                       </Tooltip>
+  //                     )}
+  //                   </div>
+  //                 );
+  //               })}
+  //             </div>
+  //           </div>
+  //         ))}
+  //       </div>
+  //     </div>
+  //   );
+  // };
 
   // 渲染日期列
   const renderDateColumn = (dateObj) => {
@@ -916,7 +1254,9 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
     };
     
     // 处理日期点击，显示当天的行程统计
-    const handleDateClick = () => {
+    const handleDateClick = async () => {
+      console.log(`🎯 日期点击事件触发! 日期: ${dateStr}, 星期: ${dayOfWeek}`);
+      
       // 统计当天各个地点的人数
       const stats = {};
       
@@ -941,12 +1281,80 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
         }
       });
       
-      // 转换为数组格式，便于展示
-      const statsArray = Object.keys(stats).map(location => ({
-        location,
-        count: stats[location].count,
-        totalPax: stats[location].totalPax,
-        tourGroupIds: stats[location].tourGroupIds // 添加团队ID数组
+      // 转换为数组格式，并检查分配状态
+      const statsArray = await Promise.all(Object.keys(stats).map(async (location) => {
+        console.log(`📍 开始检查地点: ${location} 的分配状态`);
+        
+        try {
+          // 调用API检查该日期该地点的分配状态
+          console.log(`🔍 API请求参数:`, {
+            url: '/admin/guide-assignment/status',
+            params: {
+              date: dateStr,
+              location: location
+            }
+          });
+          
+          const assignmentResponse = await checkAssignmentStatus(dateStr, location);
+          
+          console.log(`✅ ${location} API响应:`, assignmentResponse);
+          
+          let isAssigned = false;
+          let guideInfo = '';
+          let vehicleInfo = '';
+          
+          if (assignmentResponse && assignmentResponse.code === 1 && assignmentResponse.data) {
+            const assignmentData = assignmentResponse.data;
+            isAssigned = assignmentData.isAssigned || false;
+            guideInfo = assignmentData.guideName || '';
+            vehicleInfo = assignmentData.vehicleInfo || '';
+            
+            console.log(`📊 ${location} 解析结果:`, {
+              isAssigned,
+              guideInfo,
+              vehicleInfo
+            });
+          } else {
+            console.warn(`⚠️ ${location} API响应格式异常:`, assignmentResponse);
+          }
+          
+          return {
+            location,
+            count: stats[location].count,
+            totalPax: stats[location].totalPax,
+            tourGroupIds: stats[location].tourGroupIds,
+            isAssigned,
+            guideInfo,
+            vehicleInfo
+          };
+        } catch (error) {
+          console.error(`❌ 检查分配状态失败 - ${location}:`, error);
+          console.error(`错误详情:`, error.response?.data || error.message);
+          console.error(`HTTP状态码:`, error.response?.status);
+          console.error(`完整错误对象:`, error);
+          
+          // 显示用户友好的错误提示
+          if (error.response?.status === 401) {
+            console.error(`🔐 认证失败！请检查是否已登录或token是否有效`);
+          } else if (error.response?.status === 404) {
+            console.error(`🔍 API接口不存在: ${error.config?.url}`);
+          } else if (error.response?.status >= 500) {
+            console.error(`🔥 服务器内部错误`);
+          }
+          
+          // 如果API调用失败，默认为未分配状态
+          return {
+            location,
+            count: stats[location].count,
+            totalPax: stats[location].totalPax,
+            tourGroupIds: stats[location].tourGroupIds,
+            isAssigned: false,
+            guideInfo: '',
+            vehicleInfo: '',
+            error: error.message,
+            httpStatus: error.response?.status
+          };
+        }
       }));
       
       setDateLocationStats(statsArray);
@@ -989,14 +1397,6 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
     return { dateIndexMap, startIdx, endIdx };
   };
   
-  const handleTooltipVisibleChange = (tooltipId, visible) => {
-    // 如果正在拖拽，不显示tooltip
-    if (draggedItem) {
-      return;
-    }
-    
-    setActiveTooltip(visible ? tooltipId : null);
-  };
 
   // 按列号对订单进行分组
   const groupsByColumn = {};
@@ -1020,22 +1420,65 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
     
     // 确保我们正确提取订单信息
     const location = locationData.location || {};
-    const order = location.order || locationData.order || {};
+    const order = locationData.order || locationData.location?.order || {};
     
     // 确保即使没有完整订单信息也能显示部分内容
-    const bookingId = order.bookingId || order.id || null;
-    const orderNumber = order.orderNumber || '未知订单号';
-    const orderInfo = {
-      name: order.contactPerson || location.name || '未知客户',
-      phone: order.contactPhone || '未提供',
-      pax: (order.adultCount || 0) + (order.childCount || 0),
-      hotel: order.pickupLocation || '未指定',
-      bookingId: bookingId,
-      orderNumber: orderNumber,
-      tourType: order.tourType || '未知类型',
-      tourName: order.tourName || location.name || '未知产品',
-      specialRequests: order.specialRequests || '无特殊要求'
-    };
+    const bookingId = order.bookingId || order.id || locationData.bookingId || null;
+    const orderNumber = order.orderNumber || locationData.orderNumber || '未知订单号';
+    
+          // 🎯 优先使用排团表API数据，确保字段映射正确
+      // 🔧 修复：数据在location属性下，需要正确的访问路径
+      const locationInfo = locationData.location || {};
+      
+      const orderInfo = {
+        // 客户信息 - 优先使用排团表数据（正确路径：locationData.location）
+        name: locationInfo.contactPerson || order.contactPerson || locationData.name || '未知客户',
+        phone: locationInfo.contactPhone || order.contactPhone || '未提供',
+        // 人数信息 - 直接从排团表获取（正确路径）
+        adultCount: locationInfo.adultCount || order.adultCount || 0,
+        childCount: locationInfo.childCount || order.childCount || 0,
+        pax: (locationInfo.adultCount || order.adultCount || 0) + (locationInfo.childCount || order.childCount || 0),
+        // 基本订单信息
+        bookingId: bookingId,
+        orderNumber: orderNumber,
+        tourType: locationInfo.tourType || order.tourType || '未知类型',
+        tourName: locationInfo.tourName || order.tourName || locationInfo.name || '未知产品',
+        specialRequests: locationInfo.specialRequests || order.specialRequests || '无特殊要求',
+        // 🚗 接送地点 - 多路径查找排团表数据（修复的关键：完整路径搜索）
+        pickupLocation: locationData.pickupLocation || locationInfo.pickupLocation || order.pickupLocation || '',
+        dropoffLocation: locationData.dropoffLocation || locationInfo.dropoffLocation || order.dropoffLocation || '',
+        dayNumber: locationInfo.dayNumber || order.dayNumber || location.dayNumber || 0,
+        // ✈️ 航班信息 - 从排团表API获取（正确路径）
+        flightNumber: locationInfo.flightNumber || order.flightNumber || '',
+        returnFlightNumber: locationInfo.returnFlightNumber || order.returnFlightNumber || '',
+        arrivalLandingTime: locationInfo.arrivalLandingTime || order.arrivalLandingTime || null,
+        arrivalDepartureTime: locationInfo.arrivalDepartureTime || order.arrivalDepartureTime || null,
+        departureDepartureTime: locationInfo.departureDepartureTime || order.departureDepartureTime || null,
+        departureLandingTime: locationInfo.departureLandingTime || order.departureLandingTime || null,
+        // 🏨 酒店信息 - 支持驼峰和下划线两种命名方式
+        hotelRoomCount: locationInfo.hotelRoomCount || locationInfo.hotel_room_count || order.hotelRoomCount || order.hotel_room_count || locationData.hotelRoomCount || locationData.hotel_room_count || 0,
+        roomDetails: locationInfo.roomDetails || locationInfo.room_details || order.roomDetails || order.room_details || locationData.roomDetails || locationData.room_details || '标准房型',
+        hotelLevel: locationInfo.hotelLevel || locationInfo.hotel_level || order.hotelLevel || order.hotel_level || locationData.hotelLevel || locationData.hotel_level || '',
+        roomType: locationInfo.roomType || locationInfo.room_type || order.roomType || order.room_type || locationData.roomType || locationData.room_type || '',
+        hotelCheckInDate: locationInfo.hotelCheckInDate || locationInfo.hotel_check_in_date || order.hotelCheckInDate || order.hotel_check_in_date || locationData.hotelCheckInDate || locationData.hotel_check_in_date || null,
+        hotelCheckOutDate: locationInfo.hotelCheckOutDate || locationInfo.hotel_check_out_date || order.hotelCheckOutDate || order.hotel_check_out_date || locationData.hotelCheckOutDate || locationData.hotel_check_out_date || null,
+        // 代理商和操作员信息
+        agentName: locationInfo.agentName || order.agentName || '未知代理商',
+        operatorName: locationInfo.operatorName || order.operatorName || '未分配',
+        passengerContact: locationInfo.passengerContact || order.passengerContact || locationInfo.contactPhone || '未提供',
+        // 兼容性字段（用于显示接送点的老逻辑）
+        hotel: locationInfo.pickupLocation || order.pickupLocation || '未指定'
+      };
+      
+      // 🏨 简化调试：检查后端是否返回酒店字段
+      console.log('🏨 [前端调试] 订单' + orderInfo.orderNumber + ' - 最终提取的酒店数据:', {
+        hotelLevel: orderInfo.hotelLevel,
+        roomType: orderInfo.roomType,
+        hotelRoomCount: orderInfo.hotelRoomCount,
+        hotelCheckInDate: orderInfo.hotelCheckInDate,
+        hotelCheckOutDate: orderInfo.hotelCheckOutDate,
+        roomDetails: orderInfo.roomDetails
+      });
     
     // 提取当前订单ID以启用初始化功能
     const currentBookingId = bookingId ? parseInt(bookingId) : null;
@@ -1053,52 +1496,164 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
         </div>
         
         <div className="detail-info">
-          <div className="info-item">
-            <UserOutlined /> 客户: {orderInfo.name}
+          {/* 基础信息区域 - 紧凑的两列布局 */}
+          <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginBottom: '10px', fontSize: '13px'}}>
+            <div style={{display: 'flex', alignItems: 'center'}}>
+              <UserOutlined style={{color: '#1890ff', marginRight: '4px', fontSize: '12px'}} />
+              <span style={{fontWeight: '500'}}>{orderInfo.name}</span>
+            </div>
+            <div style={{display: 'flex', alignItems: 'center'}}>
+              <PhoneOutlined style={{color: '#52c41a', marginRight: '4px', fontSize: '12px'}} />
+              <span>{orderInfo.phone}</span>
+            </div>
+            <div style={{display: 'flex', alignItems: 'center'}}>
+              <TeamOutlined style={{color: '#fa8c16', marginRight: '4px', fontSize: '12px'}} />
+              <span>{orderInfo.pax}人 ({orderInfo.adultCount}大{orderInfo.childCount}小)</span>
+            </div>
+            <div style={{display: 'flex', alignItems: 'center'}}>
+              <HomeOutlined style={{color: '#722ed1', marginRight: '4px', fontSize: '12px'}} />
+              <span style={{fontSize: '12px'}}>{orderInfo.pickupLocation || orderInfo.hotel || '未指定'}</span>
+            </div>
           </div>
-          <div className="info-item">
-            <PhoneOutlined /> 电话: {orderInfo.phone}
+
+          {/* 订单号 - 单独一行 */}
+          <div style={{marginBottom: '10px', padding: '4px 6px', backgroundColor: '#f8f9fa', borderRadius: '3px', fontSize: '11px', color: '#666'}}>
+            <IdcardOutlined style={{marginRight: '4px'}} />
+            {orderInfo.orderNumber}
           </div>
-          <div className="info-item">
-            <TeamOutlined /> 人数: {orderInfo.pax}
-          </div>
-          <div className="info-item">
-            <HomeOutlined /> 接送点: {orderInfo.hotel}
-          </div>
-          <div className="info-item">
-            <IdcardOutlined /> 订单号: {orderInfo.orderNumber}
-          </div>
-        </div>
-        
-        <div className="detail-description">
-          {orderInfo.specialRequests && (
-            <div className="description-content">
-              <strong>特殊要求:</strong>
-              <p>{orderInfo.specialRequests}</p>
+
+          {/* 航班信息 - 紧凑横向布局 */}
+          {(orderInfo.flightNumber || orderInfo.returnFlightNumber) && (
+            <div style={{marginBottom: '10px', padding: '6px', backgroundColor: '#e6f7ff', borderRadius: '4px', fontSize: '12px'}}>
+              <div style={{display: 'flex', gap: '12px', flexWrap: 'wrap'}}>
+                {orderInfo.flightNumber && orderInfo.flightNumber !== '暂无' && (
+                  <span style={{color: '#1890ff'}}>
+                    ✈️ {orderInfo.flightNumber}
+                  </span>
+                )}
+                {orderInfo.returnFlightNumber && orderInfo.returnFlightNumber !== '暂无' && (
+                  <span style={{color: '#fa8c16'}}>
+                    🛬 {orderInfo.returnFlightNumber}
+                  </span>
+                )}
+              </div>
             </div>
           )}
-          {(!orderInfo.specialRequests && (locationData.description || location.description)) && (
-            <div className="description-content">
-              <strong>行程描述:</strong>
-              <p>{locationData.description || location.description}</p>
+          
+          {/* 🏨 酒店信息 - 紧凑卡片式布局 */}
+          {(orderInfo.tourType === 'group_tour' || orderInfo.hotelRoomCount > 0 || (orderInfo.hotelLevel && orderInfo.hotelLevel.trim() !== '') || (orderInfo.roomType && orderInfo.roomType.trim() !== '')) && (
+            <div style={{
+              marginBottom: '10px', 
+              padding: '8px', 
+              backgroundColor: '#fff7e6', 
+              borderRadius: '4px', 
+              border: '1px solid #ffd591'
+            }}>
+              {/* 酒店标题 */}
+              <div style={{
+                display: 'flex', 
+                alignItems: 'center', 
+                marginBottom: '6px', 
+                fontSize: '12px', 
+                fontWeight: '600', 
+                color: '#d46b08'
+              }}>
+                <span style={{marginRight: '3px'}}>🏨</span>
+                <span>酒店信息</span>
+              </div>
+              
+              {/* 酒店详情 - 紧凑的网格布局 */}
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 8px', fontSize: '11px'}}>
+                <div>
+                  <span style={{color: '#8c8c8c'}}>⭐ </span>
+                  <span style={{color: orderInfo.hotelLevel && orderInfo.hotelLevel.trim() !== '' ? '#262626' : '#bfbfbf'}}>
+                    {orderInfo.hotelLevel && orderInfo.hotelLevel.trim() !== '' ? orderInfo.hotelLevel : '待确定'}
+                  </span>
+                </div>
+                <div>
+                  <span style={{color: '#8c8c8c'}}>🛏️ </span>
+                  <span style={{color: orderInfo.roomType && orderInfo.roomType.trim() !== '' ? '#262626' : '#bfbfbf'}}>
+                    {orderInfo.roomType && orderInfo.roomType.trim() !== '' ? orderInfo.roomType : '待确定'}
+                  </span>
+                </div>
+                <div>
+                  <span style={{color: '#8c8c8c'}}>🏠 </span>
+                  <span style={{color: orderInfo.hotelRoomCount > 0 ? '#262626' : '#bfbfbf'}}>
+                    {orderInfo.hotelRoomCount > 0 ? `${orderInfo.hotelRoomCount}间` : '待确定'}
+                  </span>
+                </div>
+                {/* 日期信息 */}
+                {(orderInfo.hotelCheckInDate || orderInfo.hotelCheckOutDate) && (
+                  <div style={{fontSize: '10px'}}>
+                    <span style={{color: '#8c8c8c'}}>📅 </span>
+                    <span style={{color: '#389e0d'}}>
+                      {orderInfo.hotelCheckInDate && dayjs(orderInfo.hotelCheckInDate).format('MM/DD')}
+                      {orderInfo.hotelCheckInDate && orderInfo.hotelCheckOutDate && '-'}
+                      {orderInfo.hotelCheckOutDate && dayjs(orderInfo.hotelCheckOutDate).format('MM/DD')}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
-        </div>
-        
-        {/* 添加初始化行程按钮 */}
-        {currentBookingId && onInitSchedule && (
-          <div className="detail-actions">
-            <Button 
-              type="primary" 
-              size="small" 
-              onClick={() => onInitSchedule(currentBookingId)}
-              icon={<CalendarOutlined />}
-            >
-              初始化行程
-            </Button>
-            <div className="tip">点击此按钮可根据订单信息自动生成行程</div>
+          
+          {/* 接送地点信息 - 紧凑布局 */}
+          <div style={{marginBottom: '10px', padding: '6px', backgroundColor: '#f0f8ff', borderRadius: '4px', fontSize: '11px'}}>
+            <div style={{fontWeight: '600', color: '#0c5460', marginBottom: '4px', fontSize: '12px'}}>
+              📍 第{orderInfo.dayNumber}天接送
+            </div>
+            <div style={{display: 'grid', gridTemplateColumns: '1fr', gap: '2px'}}>
+              <div>
+                <span style={{color: '#28a745'}}>🚌 接:</span> 
+                <span>{orderInfo.pickupLocation || '未指定'}</span>
+              </div>
+              <div>
+                <span style={{color: '#dc3545'}}>🏁 送:</span> 
+                <span>{orderInfo.dropoffLocation || '未指定'}</span>
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* 特殊要求/行程描述 - 紧凑显示 */}
+          {(orderInfo.specialRequests && orderInfo.specialRequests !== '无特殊要求') && (
+            <div style={{marginBottom: '10px', padding: '6px', backgroundColor: '#fff2e8', borderRadius: '4px', fontSize: '11px'}}>
+              <div style={{fontWeight: '600', color: '#fa8c16', marginBottom: '2px'}}>💡 特殊要求</div>
+              <div style={{color: '#666'}}>{orderInfo.specialRequests}</div>
+            </div>
+          )}
+
+          {/* 代理商信息 - 只在有数据时显示 */}
+          {orderInfo.agentName && orderInfo.agentName !== '未知代理商' && (
+            <div style={{marginBottom: '10px', fontSize: '11px', color: '#52c41a'}}>
+              🏢 {orderInfo.agentName}
+            </div>
+          )}
+
+          {/* 操作按钮区域 */}
+          <div style={{marginTop: '10px', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px', borderTop: '1px solid #e9ecef'}}>
+            <div style={{display: 'flex', gap: '6px', justifyContent: 'center'}}>
+              <Button 
+                type="primary" 
+                size="small" 
+                icon={<EditOutlined />}
+                onClick={() => handleEditScheduleInfo(locationData, orderInfo)}
+                style={{fontSize: '11px', height: '28px'}}
+              >
+                修改信息
+              </Button>
+              <Button 
+                type="default" 
+                size="small" 
+                icon={<HomeOutlined />}
+                onClick={() => handleBookHotel(locationData, orderInfo)}
+                style={{fontSize: '11px', height: '28px', color: '#fa8c16', borderColor: '#fa8c16'}}
+              >
+                {orderInfo.hotelLevel ? '分配酒店' : '预定酒店'}
+              </Button>
+            </div>
+          </div>
+        </div>
+
       </div>
     );
   };
@@ -1114,10 +1669,438 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
     return order.agentName || order.contactPerson || '未知';
   };
 
+  // 处理修改排团表信息
+  const handleEditScheduleInfo = (locationData, orderInfo) => {
+    console.log('修改排团表信息:', { locationData, orderInfo });
+    
+    // 设置当前编辑的数据
+    setCurrentEditData({ locationData, orderInfo });
+    
+    // 填充表单数据
+    editForm.setFieldsValue({
+      contactPerson: orderInfo.name,
+      contactPhone: orderInfo.phone,
+      flightNumber: orderInfo.flightNumber,
+      returnFlightNumber: orderInfo.returnFlightNumber,
+      pickupLocation: orderInfo.pickupLocation,
+      dropoffLocation: orderInfo.dropoffLocation
+    });
+    
+    // 显示编辑弹窗
+    setEditModalVisible(true);
+  };
+
+  // 处理预定酒店
+  const handleBookHotel = (locationData, orderInfo) => {
+    console.log('🏨 酒店预订功能 - 详细信息:', { locationData, orderInfo });
+    
+    // 提取必要信息
+    const hotelInfo = {
+      订单号: orderInfo.orderNumber,
+      客户姓名: orderInfo.name,
+      联系电话: orderInfo.phone,
+      入住人数: `${orderInfo.adultCount}成人 + ${orderInfo.childCount}儿童`,
+      酒店星级: orderInfo.hotelLevel || '未指定',
+      房型需求: orderInfo.roomType || '标准房型',
+      房间数量: orderInfo.hotelRoomCount || 1,
+      房间详情: orderInfo.roomDetails || '标准房型',
+      特殊要求: orderInfo.specialRequests || '无',
+      预计入住日期: locationData.date || '待确定',
+      当前行程天数: orderInfo.dayNumber || 1
+    };
+    
+    // 显示酒店信息确认对话框
+    Modal.confirm({
+      title: '🏨 酒店预订确认',
+      width: 600,
+      content: (
+        <div style={{padding: '16px 0'}}>
+          <div style={{marginBottom: '16px', fontSize: '14px', color: '#595959'}}>
+            请确认以下酒店预订信息，点击确定将进入酒店选择和预订流程。
+          </div>
+          
+          <div style={{
+            backgroundColor: '#f9f9f9', 
+            padding: '12px', 
+            borderRadius: '6px',
+            border: '1px solid #d9d9d9'
+          }}>
+            {Object.entries(hotelInfo).map(([key, value]) => (
+              <div key={key} style={{
+                display: 'flex', 
+                marginBottom: '8px',
+                fontSize: '13px'
+              }}>
+                <span style={{
+                  minWidth: '100px',
+                  color: '#8c8c8c',
+                  fontWeight: '500'
+                }}>
+                  {key}:
+                </span>
+                <span style={{color: '#262626', fontWeight: '500'}}>
+                  {value}
+                </span>
+              </div>
+            ))}
+          </div>
+          
+          <div style={{
+            marginTop: '12px',
+            padding: '8px 12px',
+            backgroundColor: '#e6f7ff',
+            borderRadius: '4px',
+            fontSize: '12px',
+            color: '#1890ff'
+          }}>
+            💡 提示：点击确定后将打开酒店选择界面，您可以根据客户需求选择合适的酒店。
+          </div>
+        </div>
+      ),
+      okText: '开始预订',
+      cancelText: '取消',
+      onOk: () => {
+        message.loading('正在打开酒店预订系统...', 1);
+        setTimeout(() => {
+          // TODO: 这里可以跳转到酒店预订页面或打开酒店选择弹窗
+          message.success('酒店预订功能即将开放，敬请期待！');
+          // 可以设置一个状态来打开酒店选择弹窗
+          // setHotelBookingModalVisible(true);
+          // setCurrentHotelBookingData({ locationData, orderInfo, hotelInfo });
+        }, 1000);
+      },
+      onCancel: () => {
+        console.log('用户取消了酒店预订');
+      }
+    });
+  };
+
+  // 保存编辑的排团表信息
+  const handleSaveEditInfo = async () => {
+    try {
+      const values = await editForm.validateFields();
+      const { locationData, orderInfo } = currentEditData;
+      
+      console.log('保存编辑信息:', values);
+      console.log('当前编辑数据:', currentEditData);
+      
+      // 提取当前数据
+      const location = locationData.location || {};
+      const order = locationData.order || locationData.location?.order || {};
+      const bookingId = order.bookingId || order.id || locationData.bookingId;
+      const scheduleId = location.scheduleId || locationData.scheduleId;
+      
+      if (!bookingId) {
+        throw new Error('无法获取订单ID');
+      }
+      
+      // 🔄 分步处理：乘客信息 vs 接送地点信息
+      
+      // 1️⃣ 更新乘客信息到订单表（姓名、电话、航班号）
+      const passengerInfoChanged = 
+        values.contactPerson !== orderInfo.name ||
+        values.contactPhone !== orderInfo.phone ||
+        values.flightNumber !== orderInfo.flightNumber ||
+        values.returnFlightNumber !== orderInfo.returnFlightNumber;
+      
+      if (passengerInfoChanged) {
+        console.log('🔄 更新乘客信息到订单表...');
+        const orderUpdateData = {
+          contactPerson: values.contactPerson,
+          contactPhone: values.contactPhone,
+          flightNumber: values.flightNumber,
+          returnFlightNumber: values.returnFlightNumber
+        };
+        
+        await updateOrder(bookingId, orderUpdateData);
+        console.log('✅ 订单表更新成功');
+      }
+      
+      // 2️⃣ 更新排团表信息
+      const locationInfoChanged = 
+        values.pickupLocation !== orderInfo.pickupLocation ||
+        values.dropoffLocation !== orderInfo.dropoffLocation;
+      
+      if (passengerInfoChanged) {
+        // 🔄 乘客信息改变：需要更新该订单所有天数的排团表记录
+        console.log('🔄 更新该订单所有天数的乘客信息...');
+        
+        // 获取该订单的所有排团表记录
+        const allSchedulesResponse = await getSchedulesByBookingId(bookingId);
+        if (allSchedulesResponse?.code === 1 && allSchedulesResponse?.data?.length > 0) {
+          const allSchedules = allSchedulesResponse.data;
+          
+          // 更新所有天数的乘客信息
+          const updatedSchedules = allSchedules.map(schedule => ({
+            ...schedule,
+            contactPerson: values.contactPerson,
+            contactPhone: values.contactPhone,
+            flightNumber: values.flightNumber,
+            returnFlightNumber: values.returnFlightNumber,
+            // 如果是当天的记录，同时更新接送地点
+            ...(schedule.id === scheduleId && locationInfoChanged ? {
+              pickupLocation: values.pickupLocation,
+              dropoffLocation: values.dropoffLocation
+            } : {})
+          }));
+          
+          // 批量更新排团表
+          await saveBatchSchedules({
+            bookingId: bookingId,
+            schedules: updatedSchedules
+          });
+          console.log('✅ 批量更新排团表成功（所有天数的乘客信息已同步）');
+        }
+      } else if (locationInfoChanged) {
+        // 🔄 仅接送地点改变：只更新当天的排团表记录
+        console.log('🔄 更新当天的接送地点信息...');
+        
+        // 首先获取当前排团表记录的完整信息
+        const allSchedulesResponse = await getSchedulesByBookingId(bookingId);
+        console.log('🔍 获取到的排团表记录:', allSchedulesResponse?.data);
+        console.log('🎯 查找的scheduleId:', scheduleId);
+        console.log('🎯 查找的bookingId:', bookingId);
+        
+        if (allSchedulesResponse?.code === 1 && allSchedulesResponse?.data?.length > 0) {
+          // 尝试多种方式查找匹配的记录
+          let currentSchedule = null;
+          
+          // 方法1: 通过scheduleId查找
+          if (scheduleId) {
+            currentSchedule = allSchedulesResponse.data.find(schedule => schedule.id === scheduleId);
+            console.log('🔍 通过scheduleId查找结果:', currentSchedule);
+          }
+          
+          // 方法2: 如果scheduleId查找失败，根据当前编辑的地点信息查找
+          if (!currentSchedule && locationData) {
+            const currentLocation = locationData.location || {};
+            const currentOrder = locationData.order || currentLocation.order || {};
+            
+            // 尝试通过天数、日期等信息匹配
+            if (currentOrder.dayNumber) {
+              currentSchedule = allSchedulesResponse.data.find(schedule => 
+                schedule.dayNumber === currentOrder.dayNumber
+              );
+              console.log('🔍 通过dayNumber查找结果:', currentSchedule);
+            }
+            
+            // 如果还没找到，取第一条记录（单天修改的情况）
+            if (!currentSchedule && allSchedulesResponse.data.length === 1) {
+              currentSchedule = allSchedulesResponse.data[0];
+              console.log('🔍 使用唯一记录:', currentSchedule);
+            }
+          }
+          
+          if (currentSchedule) {
+            // 保留原有数据，只更新接送地点
+            const scheduleUpdateData = {
+              ...currentSchedule,
+              pickupLocation: values.pickupLocation,
+              dropoffLocation: values.dropoffLocation
+            };
+            
+            console.log('📝 准备更新的数据:', scheduleUpdateData);
+            await saveSchedule(scheduleUpdateData);
+            console.log('✅ 排团表更新成功（仅当天接送地点）');
+          } else {
+            console.error('❌ 所有查找方法都失败了');
+            console.error('📊 可用的排团记录:', allSchedulesResponse.data.map(s => ({
+              id: s.id,
+              dayNumber: s.dayNumber,
+              tourDate: s.tourDate,
+              title: s.title
+            })));
+            throw new Error(`无法找到当前排团表记录 (scheduleId: ${scheduleId}, bookingId: ${bookingId})`);
+          }
+        } else {
+          throw new Error('无法获取排团表记录');
+        }
+      }
+      
+      if (!passengerInfoChanged && !locationInfoChanged) {
+        message.info('没有信息需要更新');
+        setEditModalVisible(false);
+        return;
+      }
+      
+      // 🎉 成功提示
+      if (passengerInfoChanged && locationInfoChanged) {
+        message.success('信息更新成功 (乘客信息已同步到订单表和所有天数，接送地点仅更新当天)');
+      } else if (passengerInfoChanged) {
+        message.success('乘客信息更新成功 (已同步到订单表和所有天数的排团表)');
+      } else if (locationInfoChanged) {
+        message.success('接送地点更新成功 (仅更新当天排团表)');
+      }
+      
+      setEditModalVisible(false);
+      
+      // 刷新数据
+      if (onUpdate) {
+        onUpdate({
+          type: 'refresh'
+        });
+      }
+    } catch (error) {
+      console.error('保存编辑信息失败:', error);
+      message.error('保存失败: ' + (error.message || '未知错误'));
+    }
+  };
+
+  // 查看导游用车分配详情 - 跳转到分配表页面
+  const handleViewAssignment = async (locationRecord) => {
+    console.log('查看导游用车分配详情:', locationRecord);
+    
+    if (!selectedDate) {
+      message.warning('请先选择日期');
+      return;
+    }
+
+    try {
+      const selectedDateStr = selectedDate.format('YYYY-MM-DD');
+      const location = encodeURIComponent(locationRecord.location);
+      
+      // 跳转到导游用车分配表页面，传递日期和地点参数
+      navigate(`/tour-itinerary?date=${selectedDateStr}&location=${location}`);
+    } catch (error) {
+      console.error('跳转到分配表失败:', error);
+      message.error('跳转到分配表失败');
+    }
+  };
+
+  // 处理重新分配
+  const handleReassign = (locationRecord) => {
+    console.log('重新分配:', locationRecord);
+    
+    if (!selectedDate) {
+      message.warning('请先选择日期');
+      return;
+    }
+    
+    // 设置重新分配的模式
+    setSelectedLocation(locationRecord);
+    setSelectedDate(selectedDate);
+    
+    // 构造订单数据（与handleAssignClick类似的逻辑）
+    const selectedDateStr = selectedDate.format('YYYY-MM-DD');
+    const ordersForLocation = [];
+    
+    tourGroups.forEach(group => {
+      const locationData = group.locationsByDate[selectedDateStr];
+      if (locationData && locationData.location) {
+        const locationName = extractLocationName(locationData.location.name || locationData.name || '');
+        
+        if (locationName === locationRecord.location) {
+          const orderData = {
+            id: group.id,
+            order_number: locationData.location.order?.orderNumber || `ORDER-${group.id}`,
+            title: locationData.location.name || locationData.name || '',
+            tour_location: locationName,
+            adult_count: locationData.location.order?.adultCount || 2,
+            child_count: locationData.location.order?.childCount || 0,
+            customer_name: group.customer?.name || locationData.location.order?.contactPerson || '未知客户',
+            contact_phone: locationData.location.order?.contactPhone || '',
+            pickup_location: locationData.location.order?.pickupLocation || '',
+            special_requirements: locationData.location.order?.specialRequirements || '',
+            // 添加重新分配标识
+            isReassignment: true,
+            assignmentId: locationRecord.assignmentId,
+            currentGuideId: locationRecord.guideId,
+            currentVehicleId: locationRecord.vehicleId
+          };
+          
+          ordersForLocation.push(orderData);
+        }
+      }
+    });
+    
+    if (ordersForLocation.length > 0) {
+      setSelectedOrders(ordersForLocation);
+      setGuideVehicleModalVisible(true);
+      message.info('正在为您加载重新分配界面...');
+    } else {
+      message.warning('未找到该地点的订单数据');
+    }
+  };
+
+  // 添加修改分配功能
+  const handleEditAssignment = async (record) => {
+    try {
+      console.log('修改分配:', record);
+      
+      if (!selectedDate) {
+        message.error('未选择日期');
+        return;
+      }
+      
+      const dateStr = selectedDate.format('YYYY-MM-DD');
+      
+      // 获取该日期该地点的分配详情
+      console.log('获取分配详情用于修改，日期:', dateStr, '地点:', record.location);
+      
+      const assignmentDetails = await getAssignmentByDateAndLocation(dateStr, record.location);
+      
+      if (!assignmentDetails || !assignmentDetails.data || assignmentDetails.data.length === 0) {
+        message.error('未找到分配记录');
+        return;
+      }
+      
+      // 取第一个分配记录
+      const assignment = assignmentDetails.data[0];
+      
+      // 构造订单数据，与handleAssignClick类似，但添加现有分配信息
+      const ordersForLocation = [];
+      
+      tourGroups.forEach(group => {
+        const locationData = group.locationsByDate[dateStr];
+        if (locationData && locationData.location) {
+          const locationName = extractLocationName(locationData.location.name || locationData.name || '');
+          
+          if (locationName === record.location) {
+            const orderData = {
+              id: group.id,
+              order_number: locationData.location.order?.orderNumber || `ORDER-${group.id}`,
+              title: locationData.location.name || locationData.name || '',
+              tour_location: locationName,
+              adult_count: locationData.location.order?.adultCount || 2,
+              child_count: locationData.location.order?.childCount || 0,
+              customer_name: group.customer?.name || locationData.location.order?.contactPerson || '未知客户',
+              contact_phone: locationData.location.order?.contactPhone || '',
+              pickup_location: locationData.location.order?.pickupLocation || '',
+              special_requirements: locationData.location.order?.specialRequirements || '',
+              // 添加修改分配标识和现有分配信息
+              isEdit: true,
+              assignmentId: assignment.id,
+              currentGuideId: assignment.guide?.guideId,
+              currentVehicleId: assignment.vehicle?.vehicleId,
+              currentGuideName: assignment.guide?.guideName,
+              currentVehicleInfo: assignment.vehicle?.licensePlate + ' (' + assignment.vehicle?.vehicleType + ')'
+            };
+            
+            ordersForLocation.push(orderData);
+          }
+        }
+      });
+      
+      if (ordersForLocation.length > 0) {
+        setSelectedOrders(ordersForLocation);
+        setGuideVehicleModalVisible(true);
+        message.info('正在为您加载修改分配界面...');
+      } else {
+        message.warning('未找到该地点的订单数据');
+      }
+      
+    } catch (error) {
+      console.error('获取分配信息失败:', error);
+      message.error('获取分配信息失败: ' + (error.message || '未知错误'));
+    }
+  };
+
   // 处理分配按钮点击 - 使用新的组件
   const handleAssignClick = (locationRecord) => {
     console.log('点击分配按钮，位置记录:', locationRecord);
     console.log('当前选择的日期:', selectedDate);
+    console.log('selectedDate类型:', typeof selectedDate, selectedDate?.constructor?.name);
+    console.log('selectedDate详细信息:', selectedDate);
     console.log('当前数据结构:', data);
     
     // 根据当前的数据结构，从tourGroups中收集该地点的订单
@@ -1170,38 +2153,154 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
   };
   
   // 处理分配成功回调
-  const handleAssignSuccess = (assignmentData) => {
+  const handleAssignSuccess = async (assignmentData) => {
     console.log('分配成功:', assignmentData);
     message.success('导游和车辆分配成功！');
-    // 可以在这里刷新数据或更新UI
+    
+    // 立即刷新当前弹窗的状态数据
+    if (selectedDate && dateModalVisible) {
+      await refreshDateLocationStats();
+    }
+    
+    // 通知父组件刷新整体数据
     if (onUpdate) {
       onUpdate();
     }
+  };
+  
+  // 刷新日期地点统计数据的函数
+  const refreshDateLocationStats = async () => {
+    if (!selectedDate) return;
+    
+    console.log('开始刷新分配状态，日期:', selectedDate.format('YYYY-MM-DD'));
+    
+    const dateStr = selectedDate.format('YYYY-MM-DD');
+    const stats = {};
+    
+    // 重新统计当天各个地点的人数
+    tourGroups.forEach(group => {
+      const todaySchedule = group.locationsByDate[dateStr];
+      
+      if (todaySchedule && (todaySchedule.location?.name || todaySchedule.name)) {
+        const locationName = extractLocationName(todaySchedule.location?.name || todaySchedule.name || '');
+        
+        if (!stats[locationName]) {
+          stats[locationName] = {
+            count: 0,
+            totalPax: 0,
+            tourGroupIds: []
+          };
+        }
+        
+        stats[locationName].count += 1;
+        stats[locationName].totalPax += (parseInt(group.customer?.pax) || parseInt(group.pax) || 0);
+        stats[locationName].tourGroupIds.push(group.id);
+      }
+    });
+    
+    console.log('统计到的地点:', Object.keys(stats));
+    
+    // 重新检查分配状态
+    const statsArray = await Promise.all(Object.keys(stats).map(async (location) => {
+      console.log(`🔄 刷新检查地点: ${location} 的分配状态`);
+      
+      try {
+        console.log(`🔍 刷新API请求参数:`, {
+          url: '/admin/guide-assignment/status',
+          params: {
+            date: dateStr,
+            location: location
+          }
+        });
+        
+        const assignmentResponse = await checkAssignmentStatus(dateStr, location);
+        
+        console.log(`✅ 刷新${location} API响应:`, assignmentResponse);
+        
+        let isAssigned = false;
+        let guideInfo = '';
+        let vehicleInfo = '';
+        
+        if (assignmentResponse && assignmentResponse.code === 1 && assignmentResponse.data) {
+          const assignmentData = assignmentResponse.data;
+          isAssigned = assignmentData.isAssigned || false;
+          guideInfo = assignmentData.guideName || '';
+          vehicleInfo = assignmentData.vehicleInfo || '';
+          
+          console.log(`📊 刷新${location} 解析结果:`, {
+            isAssigned,
+            guideInfo,
+            vehicleInfo
+          });
+        } else {
+          console.warn(`⚠️ 刷新${location} API响应格式异常:`, assignmentResponse);
+        }
+        
+        return {
+          location,
+          count: stats[location].count,
+          totalPax: stats[location].totalPax,
+          tourGroupIds: stats[location].tourGroupIds,
+          isAssigned,
+          guideInfo,
+          vehicleInfo
+        };
+      } catch (error) {
+        console.error(`❌ 刷新检查分配状态失败 - ${location}:`, error);
+        console.error(`刷新错误详情:`, error.response?.data || error.message);
+        
+        // 即使API调用失败，也返回基本信息，避免数据丢失
+        return {
+          location,
+          count: stats[location].count,
+          totalPax: stats[location].totalPax,
+          tourGroupIds: stats[location].tourGroupIds,
+          isAssigned: false,
+          guideInfo: '',
+          vehicleInfo: '',
+          error: error.message
+        };
+      }
+    }));
+    
+    console.log('刷新后的分配状态:', statsArray);
+    setDateLocationStats(statsArray);
   };
   
   // 获取可用导游和车辆
   const fetchAvailableGuidesAndVehicles = async () => {
     setAssignLoading(true);
     try {
-      // 获取导游列表 - 角色为0的员工
-      const guidesResponse = await getEmployeesByPage({
-        role: 0,
-        status: 1, // 启用状态
-        page: 1,
-        pageSize: 100
-      });
+      // 检查必要参数
+      if (!selectedDate) {
+        message.error('请先选择日期');
+        setAvailableGuides([]);
+        setAvailableVehicles([]);
+        return;
+      }
+      
+      const dateStr = selectedDate.format('YYYY-MM-DD');
+      const startTime = '08:00:00';  // 默认开始时间
+      const endTime = '18:00:00';    // 默认结束时间
+      const location = selectedLocation?.location || '';
+      const peopleCount = selectedLocation?.totalPax || 1;
+      
+      console.log('获取可用资源参数:', { dateStr, startTime, endTime, location, peopleCount });
+
+      // 获取可用导游列表 - 使用availability表
+      const guidesResponse = await getAvailableGuides(dateStr, startTime, endTime, location);
       
       console.log('导游数据响应:', guidesResponse);
       
       if (guidesResponse && guidesResponse.code === 1) {
-        setAvailableGuides(guidesResponse.data.records || []);
+        setAvailableGuides(guidesResponse.data || []);
       } else {
         setAvailableGuides([]);
-        console.error('获取导游数据格式不正确:', guidesResponse);
+        console.error('获取导游数据失败:', guidesResponse?.msg || '未知错误');
       }
       
-      // 获取可用车辆列表
-      const vehiclesResponse = await getAvailableVehicles();
+      // 获取可用车辆列表 - 使用availability表
+      const vehiclesResponse = await getAvailableVehicles(dateStr, startTime, endTime, peopleCount);
       
       console.log('车辆数据响应:', vehiclesResponse);
       
@@ -1209,11 +2308,11 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
         setAvailableVehicles(vehiclesResponse.data || []);
       } else {
         setAvailableVehicles([]);
-        console.error('获取车辆数据格式不正确:', vehiclesResponse);
+        console.error('获取车辆数据失败:', vehiclesResponse?.msg || '未知错误');
       }
     } catch (error) {
       console.error('获取导游或车辆数据失败:', error);
-      message.error('获取导游或车辆数据失败');
+      message.error('获取导游或车辆数据失败: ' + (error.message || '网络错误'));
       setAvailableGuides([]);
       setAvailableVehicles([]);
     } finally {
@@ -1313,11 +2412,11 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
             >
               <Select placeholder="请选择导游">
                 {availableGuides.map(guide => (
-                  <Select.Option key={guide.id} value={guide.id}>
-                    {guide.name} ({guide.workStatus === 0 ? '空闲' : 
-                                 guide.workStatus === 1 ? '忙碌' : 
-                                 guide.workStatus === 2 ? '休假' : 
-                                 guide.workStatus === 3 ? '出团' : '待命'})
+                  <Select.Option key={guide.guideId || guide.id} value={guide.guideId || guide.id}>
+                    {guide.guideName || guide.name} 
+                    {guide.availabilityStatus === 'available' ? ' (可用)' : 
+                     guide.availabilityStatus === 'busy' ? ' (忙碌)' : 
+                     guide.availabilityStatus === 'unavailable' ? ' (不可用)' : ' (未知状态)'}
                   </Select.Option>
                 ))}
               </Select>
@@ -1331,8 +2430,10 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
               <Select placeholder="请选择车辆">
                 {availableVehicles.map(vehicle => (
                   <Select.Option key={vehicle.vehicleId} value={vehicle.vehicleId}>
-                    {vehicle.licensePlate} ({vehicle.vehicleType} - {vehicle.seatCount}座 - 
-                    当前司机: {vehicle.currentDriverCount || 0}/{vehicle.maxDrivers})
+                    {vehicle.licensePlate} ({vehicle.vehicleType} - {vehicle.seatCount}座)
+                    {vehicle.availabilityStatus === 'available' ? ' (可用)' : 
+                     vehicle.availabilityStatus === 'busy' ? ' (使用中)' : 
+                     vehicle.availabilityStatus === 'unavailable' ? ' (不可用)' : ' (未知状态)'}
                   </Select.Option>
                 ))}
               </Select>
@@ -1343,55 +2444,371 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
     );
   };
 
+  // 处理取消分配
+  const handleCancelAssignment = async (record) => {
+    try {
+      console.log('取消分配:', record);
+      
+      if (!selectedDate) {
+        message.error('未选择日期');
+        return;
+      }
+      
+      const dateStr = selectedDate.format('YYYY-MM-DD');
+      
+      // 首先获取该日期该地点的分配详情，获得分配ID
+      console.log('获取分配详情，日期:', dateStr, '地点:', record.location);
+      
+      const assignmentDetails = await getAssignmentByDateAndLocation(dateStr, record.location);
+      
+      if (!assignmentDetails || !assignmentDetails.data || assignmentDetails.data.length === 0) {
+        message.error('未找到分配记录');
+        return;
+      }
+      
+      // 取第一个分配记录的ID
+      const assignmentId = assignmentDetails.data[0].id;
+      const reason = '用户手动取消分配';
+      
+      console.log('开始取消分配，ID:', assignmentId);
+      
+      // 调用取消分配API
+      const result = await cancelAssignment(assignmentId, reason);
+      
+      if (result && result.code === 1) {
+        message.success('分配已取消');
+        // 刷新状态
+        await refreshDateLocationStats();
+      } else {
+        message.error(result?.msg || '取消分配失败');
+      }
+      
+    } catch (error) {
+      console.error('取消分配失败:', error);
+      message.error('取消分配失败: ' + (error.message || '未知错误'));
+    }
+  };
+
   // 渲染日期点击统计弹窗的函数
   const renderDateStatsModal = () => {
     return (
       <Modal
-        title={selectedDate ? `${selectedDate.format('YYYY-MM-DD')} 行程统计` : '行程统计'}
+        title={
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            fontSize: '18px', 
+            fontWeight: 'bold',
+            color: '#495057'
+          }}>
+            <CalendarOutlined style={{ marginRight: '8px' }} />
+            {selectedDate ? `${selectedDate.format('YYYY-MM-DD')} 行程分配管理` : '行程分配管理'}
+          </div>
+        }
         open={dateModalVisible}
         onCancel={() => setDateModalVisible(false)}
         footer={[
-          <Button key="close" onClick={() => setDateModalVisible(false)}>
+          <Button 
+            key="close" 
+            type="primary" 
+            onClick={() => setDateModalVisible(false)}
+            style={{ 
+              borderRadius: '4px',
+              fontWeight: 'bold'
+            }}
+          >
             关闭
           </Button>
         ]}
+        width={900}
+        style={{ top: 20 }}
       >
         <Table
           dataSource={dateLocationStats}
           rowKey="location"
           pagination={false}
+          size="middle"
+          style={{ marginTop: '16px' }}
           columns={[
             {
               title: '目的地',
               dataIndex: 'location',
               key: 'location',
+              width: 120,
+              render: (location) => (
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  fontWeight: 'bold',
+                  color: '#262626',
+                  fontSize: '14px'
+                }}>
+                  <EnvironmentOutlined style={{ 
+                    color: getLocationColor(location), 
+                    marginRight: '6px',
+                    fontSize: '16px'
+                  }} />
+                  {location}
+                </div>
+              ),
             },
             {
               title: '团队数',
               dataIndex: 'count',
               key: 'count',
+              width: 80,
+              align: 'center',
+              render: (count) => (
+                <Tag 
+                  color="blue" 
+                  style={{ 
+                    borderRadius: '4px', 
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    padding: '4px 8px'
+                  }}
+                >
+                  {count}
+                </Tag>
+              ),
             },
             {
               title: '总人数',
               dataIndex: 'totalPax',
               key: 'totalPax',
+              width: 80,
+              align: 'center',
+              render: (totalPax) => (
+                <Tag 
+                  color="green" 
+                  style={{ 
+                    borderRadius: '4px', 
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    padding: '4px 8px'
+                  }}
+                >
+                  <TeamOutlined style={{ marginRight: '4px' }} />
+                  {totalPax}
+                </Tag>
+              ),
+            },
+            {
+              title: '分配状态',
+              key: 'assignmentStatus',
+              width: 300,
+              render: (_, record) => {
+                const isAssigned = record.isAssigned || false;
+                const guideInfo = record.guideInfo || '';
+                const vehicleInfo = record.vehicleInfo || '';
+                
+                if (isAssigned) {
+                  return (
+                    <div style={{ 
+                      padding: '10px 14px', 
+                      backgroundColor: '#d4edda', 
+                      border: '1px solid #c3e6cb',
+                      borderRadius: '6px',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                    }}>
+                      <div style={{ marginBottom: '6px' }}>
+                        <Tag 
+                          color="success" 
+                          style={{ 
+                            borderRadius: '4px', 
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            marginBottom: '8px',
+                            padding: '4px 10px'
+                          }}
+                        >
+                          ✅ 已分配
+                        </Tag>
+                      </div>
+                      {guideInfo && (
+                        <div style={{ 
+                          fontSize: '13px', 
+                          color: '#155724', 
+                          marginBottom: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          fontWeight: '500'
+                        }}>
+                          <UserSwitchOutlined style={{ marginRight: '6px', fontSize: '14px' }} />
+                          <strong>导游:</strong> <span style={{ marginLeft: '6px' }}>{guideInfo}</span>
+                        </div>
+                      )}
+                      {vehicleInfo && (
+                        <div style={{ 
+                          fontSize: '13px', 
+                          color: '#155724',
+                          display: 'flex',
+                          alignItems: 'center',
+                          fontWeight: '500'
+                        }}>
+                          <CarOutlined style={{ marginRight: '6px', fontSize: '14px' }} />
+                          <strong>车辆:</strong> <span style={{ marginLeft: '6px' }}>{vehicleInfo}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div style={{ 
+                      padding: '10px 14px', 
+                      backgroundColor: '#fff3cd', 
+                      border: '1px solid #ffeaa7',
+                      borderRadius: '6px',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                    }}>
+                      <Tag 
+                        color="warning" 
+                        style={{ 
+                          borderRadius: '4px', 
+                          fontSize: '13px',
+                          fontWeight: 'bold',
+                          padding: '4px 10px'
+                        }}
+                      >
+                        ⏳ 待分配
+                      </Tag>
+                    </div>
+                  );
+                }
+              },
             },
             {
               title: '操作',
               key: 'action',
-              render: (_, record) => (
-                <Button 
-                  type="primary" 
-                  size="small" 
-                  icon={<SettingOutlined />}
-                  onClick={() => handleAssignClick(record)}
-                >
-                  分配
-                </Button>
-              ),
+              width: 180,
+              render: (_, record) => {
+                const isAssigned = record.isAssigned || false;
+                
+                if (isAssigned) {
+                  return (
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <Button 
+                        size="small" 
+                        type="default"
+                        onClick={() => handleViewAssignment(record)}
+                        style={{ 
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          height: '28px',
+                          backgroundColor: '#e3f2fd',
+                          borderColor: '#90caf9',
+                          color: '#1976d2'
+                        }}
+                        icon={<CommentOutlined />}
+                      >
+                        详情
+                      </Button>
+                      <Button 
+                        size="small"
+                        type="primary"
+                        ghost
+                        onClick={() => handleEditAssignment(record)}
+                        style={{ 
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          height: '28px'
+                        }}
+                        icon={<SettingOutlined />}
+                      >
+                        修改
+                      </Button>
+                      <Button 
+                        size="small"
+                        danger
+                        ghost
+                        onClick={() => {
+                          Modal.confirm({
+                            title: '确认取消分配',
+                            content: `确定要取消 ${record.location} 的导游和车辆分配吗？`,
+                            icon: <CreditCardOutlined style={{ color: '#ff4d4f' }} />,
+                            okText: '确认取消',
+                            cancelText: '保留分配',
+                            okType: 'danger',
+                            onOk: () => handleCancelAssignment(record),
+                          });
+                        }}
+                        style={{ 
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          height: '28px'
+                        }}
+                        icon={<CreditCardOutlined />}
+                      >
+                        取消
+                      </Button>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <Button 
+                      type="primary" 
+                      size="small" 
+                      icon={<SettingOutlined />}
+                      onClick={() => handleAssignClick(record)}
+                      style={{ 
+                        borderRadius: '4px',
+                        fontSize: '13px',
+                        height: '32px',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      分配
+                    </Button>
+                  );
+                }
+              },
             }
           ]}
+          rowClassName={(record) => {
+            return record.isAssigned ? 'assigned-row' : 'unassigned-row';
+          }}
         />
+        
+        {/* 统计信息汇总 */}
+        <div style={{ 
+          marginTop: '20px', 
+          padding: '16px', 
+          background: '#f8f9fa',
+          borderRadius: '6px',
+          border: '1px solid #e9ecef',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-around', 
+            alignItems: 'center' 
+          }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#007bff' }}>
+                {dateLocationStats.length}
+              </div>
+              <div style={{ fontSize: '13px', color: '#6c757d', fontWeight: '500' }}>总目的地</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>
+                {dateLocationStats.filter(item => item.isAssigned).length}
+              </div>
+              <div style={{ fontSize: '13px', color: '#6c757d', fontWeight: '500' }}>已分配</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffc107' }}>
+                {dateLocationStats.filter(item => !item.isAssigned).length}
+              </div>
+              <div style={{ fontSize: '13px', color: '#6c757d', fontWeight: '500' }}>待分配</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6f42c1' }}>
+                {dateLocationStats.reduce((sum, item) => sum + item.totalPax, 0)}
+              </div>
+              <div style={{ fontSize: '13px', color: '#6c757d', fontWeight: '500' }}>总人数</div>
+            </div>
+          </div>
+        </div>
       </Modal>
     );
   };
@@ -1418,37 +2835,14 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
         </div>
       )}
       
-      {/* 左右导航按钮 - 现在作为浮动控制器 */}
-      {dates.length > visibleColumnCount && (
-        <div className="navigation-controls">
-          <Button 
-            type="primary" 
-            shape="circle" 
-            icon={<LeftOutlined />} 
-            onClick={scrollLeft}
-            disabled={visibleColumnStart <= 0}
-            className="nav-button nav-left"
-          />
-          <div className="pagination-indicator">
-            {`${visibleColumnStart + 1}-${Math.min(visibleColumnStart + visibleColumnCount, dates.length)} / ${dates.length}`}
-          </div>
-          <Button 
-            type="primary" 
-            shape="circle" 
-            icon={<RightOutlined />} 
-            onClick={scrollRight}
-            disabled={visibleColumnStart >= dates.length - visibleColumnCount}
-            className="nav-button nav-right"
-          />
-        </div>
-      )}
+
       
       <div className="schedule-container">
         {/* 时间列 - 固定在左侧 */}
         <div className="time-column">
           <div className="time-header">时间</div>
           {dates.map(date => {
-            // 创建日期对象
+            // 创建日期对象 - 统一使用moment而不是dayjs
             const dateObj = moment(date.date);
             // 获取日期字符串
             const dateStr = dateObj.format('YYYY-MM-DD');
@@ -1457,7 +2851,9 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
               <div 
                 key={date.date} 
                 className="time-cell" 
-                onClick={() => {
+                onClick={async () => {
+                  console.log(`🎯 时间列日期点击事件触发! 日期: ${dateStr}`);
+                  
                   // 统计当天各个地点的人数
                   const stats = {};
                   
@@ -1482,15 +2878,90 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
                     }
                   });
                   
-                  // 转换为数组格式，便于展示
-                  const statsArray = Object.keys(stats).map(location => ({
+                  // 转换为数组格式，并检查分配状态
+                  const statsArray = await Promise.all(Object.keys(stats).map(async (location) => {
+                    console.log(`📍 时间列开始检查地点: ${location} 的分配状态`);
+                    
+                    try {
+                      // 调用API检查该日期该地点的分配状态
+                      console.log(`🔍 时间列API请求参数:`, {
+                        url: '/admin/guide-assignment/status',
+                        params: {
+                          date: dateStr,
+                          location: location
+                        }
+                      });
+                      
+                      const assignmentResponse = await checkAssignmentStatus(dateStr, location);
+                      
+                      console.log(`✅ 时间列${location} API响应:`, assignmentResponse);
+                      
+                      let isAssigned = false;
+                      let guideInfo = '';
+                      let vehicleInfo = '';
+                      
+                      if (assignmentResponse && assignmentResponse.code === 1 && assignmentResponse.data) {
+                        const assignmentData = assignmentResponse.data;
+                        isAssigned = assignmentData.isAssigned || false;
+                        guideInfo = assignmentData.guideName || '';
+                        vehicleInfo = assignmentData.vehicleInfo || '';
+                        
+                        console.log(`📊 时间列${location} 解析结果:`, {
+                          isAssigned,
+                          guideInfo,
+                          vehicleInfo
+                        });
+                      } else {
+                        console.warn(`⚠️ 时间列${location} API响应格式异常:`, assignmentResponse);
+                      }
+                      
+                      return {
                     location,
                     count: stats[location].count,
                     totalPax: stats[location].totalPax,
-                    tourGroupIds: stats[location].tourGroupIds // 添加团队ID数组
+                        tourGroupIds: stats[location].tourGroupIds,
+                        isAssigned,
+                        guideInfo,
+                        vehicleInfo
+                      };
+                    } catch (error) {
+                      console.error(`❌ 时间列检查分配状态失败 - ${location}:`, error);
+                      console.error(`时间列错误详情:`, error.response?.data || error.message);
+                      console.error(`时间列HTTP状态码:`, error.response?.status);
+                      console.error(`时间列完整错误对象:`, error);
+                      
+                      // 显示用户友好的错误提示
+                      if (error.response?.status === 401) {
+                        console.error(`🔐 时间列认证失败！请检查是否已登录或token是否有效`);
+                      } else if (error.response?.status === 404) {
+                        console.error(`🔍 时间列API接口不存在: ${error.config?.url}`);
+                      } else if (error.response?.status >= 500) {
+                        console.error(`🔥 时间列服务器内部错误`);
+                      }
+                      
+                      // 如果API调用失败，默认为未分配状态
+                      return {
+                        location,
+                        count: stats[location].count,
+                        totalPax: stats[location].totalPax,
+                        tourGroupIds: stats[location].tourGroupIds,
+                        isAssigned: false,
+                        guideInfo: '',
+                        vehicleInfo: '',
+                        error: error.message,
+                        httpStatus: error.response?.status
+                      };
+                    }
                   }));
                   
                   setDateLocationStats(statsArray);
+                  console.log('时间列点击 - 设置selectedDate之前:', {
+                    originalDate: date.date,
+                    dateObj: dateObj,
+                    dateObjType: typeof dateObj,
+                    dateObjConstructor: dateObj?.constructor?.name,
+                    formatted: dateObj.format('YYYY-MM-DD')
+                  });
                   setSelectedDate(dateObj);
                   setDateModalVisible(true);
                 }}
@@ -1637,6 +3108,139 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onInitSchedule 
         selectedOrders={selectedOrders}
         selectedDate={selectedDate}
       />
+      
+      {/* 分配详情弹窗 */}
+      <AssignmentDetailModal
+        visible={detailModalVisible}
+        onCancel={() => {
+          setDetailModalVisible(false);
+          setCurrentAssignmentData(null);
+        }}
+        assignmentData={currentAssignmentData}
+      />
+      
+      {/* 编辑排团表信息弹窗 */}
+      <Modal
+        title="修改排团表信息"
+        open={editModalVisible}
+        onCancel={() => setEditModalVisible(false)}
+        onOk={handleSaveEditInfo}
+        okText="保存"
+        cancelText="取消"
+        width={600}
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          style={{ maxHeight: '400px', overflowY: 'auto' }}
+        >
+          <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f6ffed', borderRadius: '6px', border: '1px solid #b7eb8f' }}>
+            <p style={{ margin: 0, color: '#52c41a', fontSize: '14px' }}>
+              <strong>📝 可修改内容：</strong>
+            </p>
+            <ul style={{ margin: '8px 0 0 20px', color: '#666', fontSize: '12px' }}>
+              <li>姓名、电话、航班号 → <span style={{ color: '#1890ff' }}>同步更新到订单表</span></li>
+              <li>接送地点 → <span style={{ color: '#722ed1' }}>仅更新排团表</span></li>
+            </ul>
+          </div>
+          
+          <Form.Item
+            name="contactPerson"
+            label="联系人姓名"
+            rules={[{ required: true, message: '请输入联系人姓名' }]}
+          >
+            <Input placeholder="请输入联系人姓名" />
+          </Form.Item>
+          
+          <Form.Item
+            name="contactPhone"
+            label="联系电话"
+            rules={[{ required: true, message: '请输入联系电话' }]}
+          >
+            <Input placeholder="请输入联系电话" />
+          </Form.Item>
+          
+          <Form.Item
+            name="flightNumber"
+            label="到达航班号"
+          >
+            <Input placeholder="请输入到达航班号" />
+          </Form.Item>
+          
+          <Form.Item
+            name="returnFlightNumber"
+            label="返程航班号"
+          >
+            <Input placeholder="请输入返程航班号" />
+          </Form.Item>
+          
+          <Form.Item
+            name="pickupLocation"
+            label="接客地点"
+          >
+            <Input placeholder="请输入接客地点" />
+          </Form.Item>
+          
+          <Form.Item
+            name="dropoffLocation"
+            label="送客地点"
+          >
+            <Input placeholder="请输入送客地点" />
+          </Form.Item>
+        </Form>
+      </Modal>
+      
+      {/* 固定在右下角的横向导航控制器 - 始终显示 */}
+      <div className="horizontal-nav-controls">
+        {/* 左箭头按钮 */}
+        <button 
+          className="nav-btn"
+          onClick={scrollLeft}
+          disabled={!canScrollLeft}
+          title="向左滚动"
+        >
+          <LeftOutlined />
+        </button>
+
+        {/* 滚动进度显示 */}
+        <div className="scroll-progress">
+          <div className="progress-text">
+            {currentPage} / {totalPages}
+          </div>
+          <div className="progress-bar">
+            <div 
+              className="progress-fill"
+              style={{ width: `${scrollProgress}%` }}
+            />
+          </div>
+        </div>
+
+        {/* 右箭头按钮 */}
+        <button 
+          className="nav-btn"
+          onClick={scrollRight}
+          disabled={!canScrollRight}
+          title="向右滚动"
+        >
+          <RightOutlined />
+        </button>
+
+        {/* 快捷页面跳转按钮 */}
+        {totalPages > 1 && totalPages <= 5 && (
+          <div className="quick-nav">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+              <button
+                key={page}
+                className={`quick-btn ${currentPage === page ? 'active' : ''}`}
+                onClick={() => jumpToPage(page)}
+                title={`跳转到第${page}页`}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

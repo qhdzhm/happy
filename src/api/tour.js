@@ -52,14 +52,4 @@ export function saveBatchSchedules(data) {
   });
 }
 
-/**
- * 初始化订单的行程排序
- * @param {number} bookingId 订单ID
- * @returns {Promise} 初始化结果
- */
-export function initOrderSchedules(bookingId) {
-  return request({
-    url: `/admin/tour/schedule/init/${bookingId}`,
-    method: 'post'
-  });
-} 
+ 

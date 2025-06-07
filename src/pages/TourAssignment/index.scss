@@ -1,0 +1,120 @@
+.tour-assignment-page {
+  .search-card {
+    .search-form {
+      .ant-form-item {
+        margin-bottom: 16px;
+      }
+    }
+  }
+
+  .table-header {
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .ant-table {
+    .ant-table-cell {
+      padding: 12px 8px;
+    }
+  }
+
+  .assignment-detail {
+    .detail-section {
+      margin-bottom: 24px;
+      
+      .section-title {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        color: #262626;
+        border-bottom: 1px solid #f0f0f0;
+        padding-bottom: 8px;
+      }
+      
+      .detail-item {
+        display: flex;
+        margin-bottom: 12px;
+        
+        .label {
+          width: 120px;
+          color: #666;
+          font-weight: 500;
+        }
+        
+        .value {
+          flex: 1;
+          color: #262626;
+        }
+      }
+    }
+  }
+
+  .assignment-form {
+    .form-section {
+      margin-bottom: 24px;
+      
+      .section-title {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        color: #262626;
+        border-bottom: 1px solid #f0f0f0;
+        padding-bottom: 8px;
+      }
+    }
+
+    .ant-form-item {
+      margin-bottom: 16px;
+    }
+
+    .form-actions {
+      text-align: right;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #f0f0f0;
+    }
+  }
+
+  .status-tag {
+    &.confirmed {
+      background-color: #f6ffed;
+      border: 1px solid #b7eb8f;
+      color: #52c41a;
+    }
+    
+    &.in-progress {
+      background-color: #e6f7ff;
+      border: 1px solid #91d5ff;
+      color: #1890ff;
+    }
+    
+    &.completed {
+      background-color: #f9f0ff;
+      border: 1px solid #d3adf7;
+      color: #722ed1;
+    }
+    
+    &.cancelled {
+      background-color: #fff2f0;
+      border: 1px solid #ffccc7;
+      color: #ff4d4f;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .search-form {
+      .ant-form-item {
+        width: 100%;
+        margin-right: 0;
+      }
+    }
+    
+    .table-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 16px;
+    }
+  }
+} 

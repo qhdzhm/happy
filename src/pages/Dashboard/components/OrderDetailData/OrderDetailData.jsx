@@ -152,8 +152,13 @@ const OrderDetailData = () => {
   });
   useEffect(() => {
     async function getBadge() {
-      const res = await getstatistics();
-      setOrderStatistics(res.data.data);
+      try {
+        const res = await getstatistics();
+        setOrderStatistics(res.data || res);
+      } catch (error) {
+        console.error('获取订单统计失败:', error);
+        setOrderStatistics({});
+      }
     }
     getBadge();
   }, [params]);
@@ -165,8 +170,13 @@ const OrderDetailData = () => {
 
   useEffect(() => {
     async function getOrders() {
-      const res = await getOrderList(params);
-      setOrderList(res.data.data);
+      try {
+        const res = await getOrderList(params);
+        setOrderList(res.data || res);
+      } catch (error) {
+        console.error('获取订单列表失败:', error);
+        setOrderList({ total: 0, records: [] });
+      }
     }
     getOrders();
   }, [params]);

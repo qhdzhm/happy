@@ -495,8 +495,8 @@ const NotificationCenter = () => {
             title={null}
             trigger="click"
             placement="bottomRight"
-            visible={settingsVisible}
-            onVisibleChange={setSettingsVisible}
+            open={settingsVisible}
+            onOpenChange={setSettingsVisible}
           >
             <Button 
               type="link" 
@@ -580,11 +580,15 @@ const NotificationCenter = () => {
 
   return (
     <Dropdown
-      overlay={notificationList}
+      menu={{
+        items: [],
+        disabled: true
+      }}
+      dropdownRender={() => notificationList}
       trigger={['click']}
       placement="bottomRight"
-      visible={dropdownVisible}
-      onVisibleChange={setDropdownVisible}
+      open={dropdownVisible}
+      onOpenChange={setDropdownVisible}
       overlayClassName="notification-dropdown-overlay"
     >
       <div className="notification-trigger">

@@ -1,0 +1,329 @@
+.assignment-detail-modal {
+  .ant-modal-content {
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .ant-modal-body {
+    padding: 0;
+  }
+
+  .modal-header {
+    position: relative;
+    height: 40px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #d9d9d9;
+
+    .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      cursor: pointer;
+      font-size: 16px;
+      color: #666;
+      
+      &:hover {
+        color: #ff4d4f;
+      }
+    }
+  }
+
+  // 顶部概览信息样式
+  .assignment-overview {
+    background: #f8f9fa;
+    border-bottom: 2px solid #e9ecef;
+    padding: 0;
+
+    .overview-row {
+      display: flex;
+      
+      .info-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 12px 8px;
+        border-right: 1px solid #dee2e6;
+        min-height: 70px;
+        justify-content: center;
+
+        &:last-child {
+          border-right: none;
+        }
+
+        .label {
+          font-size: 12px;
+          color: #666;
+          margin-bottom: 4px;
+          font-weight: normal;
+        }
+
+        .value {
+          font-size: 14px;
+          font-weight: bold;
+          color: #333;
+          text-align: center;
+
+          &.guide-name {
+            color: #52c41a;
+            background: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+          }
+
+          &.people-count {
+            color: #ff4d4f;
+            font-size: 16px;
+            
+            // 订单数量显示样式
+            div {
+              margin-top: 2px;
+              font-size: 10px;
+              color: #666;
+              font-weight: normal;
+            }
+          }
+
+          &.vehicle-info {
+            color: #1890ff;
+            font-size: 12px;
+            line-height: 1.2;
+          }
+
+          &.need-vehicle {
+            color: #333;
+          }
+        }
+      }
+    }
+  }
+
+  // 详细表格容器
+  .detail-table-container {
+    margin: 0;
+    
+    .detail-table {
+      .ant-table {
+        font-size: 12px;
+      }
+
+      .ant-table-thead > tr > th {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-weight: bold;
+        text-align: center;
+        border: 1px solid #5a6bc0;
+        padding: 8px 4px;
+        font-size: 12px;
+        line-height: 1.2;
+      }
+
+      .ant-table-tbody > tr {
+        &.table-row-even {
+          background-color: #f8f9fa;
+        }
+
+        &.table-row-odd {
+          background-color: #ffffff;
+        }
+
+        &.table-row-error {
+          background-color: #fff2f0 !important;
+          border-left: 3px solid #ff4d4f;
+          
+          td {
+            color: #ff4d4f;
+          }
+        }
+
+        &.table-row-new-booking {
+          border-top: 2px solid #52c41a !important;
+          
+          &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: -1px;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #52c41a 0%, #73d13d 100%);
+            z-index: 1;
+          }
+        }
+
+        &:hover {
+          background-color: #e3f2fd !important;
+        }
+
+        > td {
+          border: 1px solid #e0e0e0;
+          padding: 6px 4px;
+          font-size: 12px;
+          vertical-align: middle;
+          text-align: center;
+
+          &:nth-child(6), &:nth-child(7) {
+            text-align: left;
+          }
+        }
+      }
+
+      // 订单号绿色标签样式已在组件中定义
+
+      // 联系方式列样式
+      .ant-table-tbody > tr > td:nth-child(5) {
+        font-family: 'Courier New', monospace;
+        font-size: 11px;
+        line-height: 1.3;
+      }
+
+      // 接送地点列样式
+      .ant-table-tbody > tr > td:nth-child(6),
+      .ant-table-tbody > tr > td:nth-child(7) {
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      // 备注列样式
+      .ant-table-tbody > tr > td:nth-child(8) {
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+  }
+
+  // 底部汇总信息
+  .bottom-summary {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    padding: 10px;
+    margin: 10px;
+    border-radius: 4px;
+    text-align: center;
+
+    .summary-text {
+      color: #856404;
+      font-size: 12px;
+      font-weight: bold;
+    }
+  }
+
+  // 拼团提醒样式
+  .group-tour-notice {
+    background: linear-gradient(135deg, #e8f5e8 0%, #f0f8ff 100%);
+    border: 2px solid #52c41a;
+    padding: 12px;
+    margin: 10px;
+    border-radius: 6px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(82, 196, 26, 0.15);
+
+    span {
+      color: #389e0d;
+      font-size: 13px;
+      font-weight: bold;
+      
+      // emoji样式
+      &::first-letter {
+        font-size: 16px;
+        margin-right: 6px;
+      }
+    }
+  }
+
+  // 行程提醒样式
+  .itinerary-notice {
+    background: linear-gradient(135deg, #fff7e6 0%, #ffefd6 100%);
+    border: 2px solid #fa8c16;
+    padding: 12px;
+    margin: 10px;
+    border-radius: 6px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(250, 140, 22, 0.15);
+
+    span {
+      color: #d46b08;
+      font-size: 13px;
+      font-weight: bold;
+      
+      // emoji样式
+      &::first-letter {
+        font-size: 16px;
+        margin-right: 6px;
+      }
+    }
+  }
+
+  // 无数据状态
+  .no-data {
+    text-align: center;
+    padding: 50px 0;
+    color: #999;
+    font-size: 14px;
+  }
+
+  // 响应式设计
+  @media (max-width: 768px) {
+    .assignment-overview {
+      .overview-row {
+        flex-direction: column;
+
+        .info-item {
+          border-right: none;
+          border-bottom: 1px solid #dee2e6;
+          padding: 8px;
+          min-height: 50px;
+
+          &:last-child {
+            border-bottom: none;
+          }
+        }
+      }
+    }
+
+    .detail-table-container {
+      .detail-table {
+        .ant-table {
+          font-size: 11px;
+        }
+
+        .ant-table-thead > tr > th,
+        .ant-table-tbody > tr > td {
+          padding: 4px 2px;
+        }
+      }
+    }
+
+    .group-tour-notice,
+    .itinerary-notice {
+      padding: 8px;
+      margin: 8px;
+      
+      span {
+        font-size: 12px;
+      }
+    }
+  }
+}
+
+// 额外的表格样式增强
+.assignment-detail-modal .detail-table {
+  .ant-table-container {
+    border: 2px solid #5a6bc0;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .ant-table-header {
+    margin-bottom: 0;
+  }
+
+  .ant-table-body {
+    margin: 0;
+  }
+} 

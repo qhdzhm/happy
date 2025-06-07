@@ -65,13 +65,17 @@ const Statistic = () => {
 
   //get turnover data
   async function getTurnoverStatisticsData(begin, end) {
-    const data = await getTurnoverStatistics({ begin: begin, end: end });
-
-    const turnover = data.data.data;
-    setTurnoverData({
-      dateList: turnover.dateList.split(","),
-      turnoverList: turnover.turnoverList.split(","),
-    });
+    try {
+      const data = await getTurnoverStatistics({ begin: begin, end: end });
+      const turnover = data.data || data;
+      setTurnoverData({
+        dateList: turnover.dateList ? turnover.dateList.split(",") : [],
+        turnoverList: turnover.turnoverList ? turnover.turnoverList.split(",") : [],
+      });
+    } catch (error) {
+      console.error('获取营业额统计失败:', error);
+      setTurnoverData({ dateList: [], turnoverList: [] });
+    }
   }
 
   //get userStatistics
@@ -81,25 +85,33 @@ const Statistic = () => {
     totalUserList: "",
   });
   async function getUserStatisticsData(begin, end) {
-    const data = await getUserStatistics({ begin: begin, end: end });
-
-    const udata = data.data.data;
-    setUserData({
-      dateList: udata.dateList.split(","),
-      newUserList: udata.newUserList.split(","),
-      totalUserList: udata.totalUserList.split(","),
-    });
+    try {
+      const data = await getUserStatistics({ begin: begin, end: end });
+      const udata = data.data || data;
+      setUserData({
+        dateList: udata.dateList ? udata.dateList.split(",") : [],
+        newUserList: udata.newUserList ? udata.newUserList.split(",") : [],
+        totalUserList: udata.totalUserList ? udata.totalUserList.split(",") : [],
+      });
+    } catch (error) {
+      console.error('获取用户统计失败:', error);
+      setUserData({ dateList: [], newUserList: [], totalUserList: [] });
+    }
   }
   //get top10
   const [top10Data, setTop10Data] = useState({ nameList: "", numberList: "" });
   async function getTop10Data(begin, end) {
-    const data = await getTop({ begin: begin, end: end });
-
-    const tdata = data.data.data;
-    setTop10Data({
-      nameList: tdata.nameList.split(",").reverse(),
-      numberList: tdata.numberList.split(",").reverse(),
-    });
+    try {
+      const data = await getTop({ begin: begin, end: end });
+      const tdata = data.data || data;
+      setTop10Data({
+        nameList: tdata.nameList ? tdata.nameList.split(",").reverse() : [],
+        numberList: tdata.numberList ? tdata.numberList.split(",").reverse() : [],
+      });
+    } catch (error) {
+      console.error('获取Top10数据失败:', error);
+      setTop10Data({ nameList: [], numberList: [] });
+    }
   }
   console.log(top10Data);
   //get OrderStatistics
@@ -113,15 +125,26 @@ const Statistic = () => {
   });
 
   async function getOrderStatisticsData(begin, end) {
-    const data = await getOrderStatistics({ begin: begin, end: end });
-
-    const odata = data.data.data;
-    setOrderData({
-      ...odata,
-      dateList: odata.dateList.split(","),
-      orderCountList: odata.orderCountList.split(","),
-      validOrderCountList: odata.validOrderCountList.split(","),
-    });
+    try {
+      const data = await getOrderStatistics({ begin: begin, end: end });
+      const odata = data.data || data;
+      setOrderData({
+        ...odata,
+        dateList: odata.dateList ? odata.dateList.split(",") : [],
+        orderCountList: odata.orderCountList ? odata.orderCountList.split(",") : [],
+        validOrderCountList: odata.validOrderCountList ? odata.validOrderCountList.split(",") : [],
+      });
+    } catch (error) {
+      console.error('获取订单统计失败:', error);
+      setOrderData({
+        dateList: [],
+        orderCompletionRate: 0,
+        orderCountList: [],
+        totalOrderCount: 0,
+        validOrderCount: 0,
+        validOrderCountList: [],
+      });
+    }
   }
   //get dates
   let parts = current.split(",");

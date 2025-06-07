@@ -1,0 +1,247 @@
+.tour-itinerary-container {
+  padding: 20px;
+  background: #f0f2f5;
+  min-height: 100vh;
+
+  .itinerary-card {
+    max-width: 1400px;
+    margin: 0 auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+
+    .back-btn {
+      display: flex;
+      align-items: center;
+      font-size: 16px;
+      
+      &:hover {
+        color: #1890ff;
+      }
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+  }
+
+  .assignment-header {
+    background: #fafafa;
+    border: 1px solid #d9d9d9;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 16px;
+
+    .info-item {
+      text-align: center;
+      
+      .ant-typography {
+        margin-bottom: 4px;
+        display: block;
+      }
+    }
+
+    .vehicle-info {
+      margin-top: 16px;
+    }
+  }
+
+  .customer-table-section {
+    margin-bottom: 24px;
+  }
+
+  .customer-assignment-table {
+    .ant-table-thead > tr > th {
+      background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%) !important;
+      color: white !important;
+      font-weight: bold !important;
+      text-align: center !important;
+      border: 1px solid #0050b3 !important;
+      padding: 8px 6px;
+    }
+
+    .ant-table-tbody > tr > td {
+      border: 1px solid #f0f0f0;
+      padding: 8px 6px;
+      vertical-align: top;
+    }
+
+    .ant-table-tbody > tr:hover > td {
+      background-color: #e6f7ff !important;
+    }
+
+    // 交替行颜色
+    .ant-table-tbody > tr:nth-child(even) > td {
+      background-color: #fafafa;
+    }
+
+    .ant-table-tbody > tr:nth-child(odd) > td {
+      background-color: #ffffff;
+    }
+
+    // 特定列的样式
+    .ant-table-tbody > tr > td:nth-child(1) { // 建议时间
+      text-align: center;
+      background-color: #f6ffed !important;
+    }
+
+    .ant-table-tbody > tr > td:nth-child(2) { // 订单号
+      background-color: #e6f7ff !important;
+    }
+
+    .ant-table-tbody > tr > td:nth-child(4) { // 人数详情
+      text-align: center;
+      background-color: #fff2e8 !important;
+    }
+
+    .ant-table-tbody > tr > td:nth-child(9) { // 特殊要求
+      background-color: #fff1f0 !important;
+    }
+
+    .ant-table-tbody > tr > td:nth-child(10) { // 下一站
+      background-color: #f6ffed !important;
+    }
+  }
+
+  // 订单统计信息样式
+  .order-summary {
+    .ant-col {
+      text-align: center;
+      padding: 8px 0;
+    }
+  }
+
+  // 信息项样式
+  .info-item {
+    text-align: center;
+    padding: 8px 0;
+    
+    .anticon {
+      margin-right: 4px !important;
+    }
+  }
+
+  // 车辆信息样式
+  .vehicle-info {
+    text-align: center;
+    
+    .anticon {
+      font-size: 16px;
+    }
+  }
+
+  .footer-note {
+    font-size: 16px;
+    margin: 20px 0;
+  }
+
+  .footer-section {
+    margin-top: 40px;
+
+    .footer-content {
+      text-align: center;
+      color: #8c8c8c;
+    }
+  }
+}
+
+.tour-itinerary-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 400px;
+}
+
+/* 打印样式 */
+@media print {
+  .tour-itinerary-container {
+    padding: 0;
+    background: white;
+
+    .no-print {
+      display: none !important;
+    }
+
+    .itinerary-card {
+      box-shadow: none;
+      border: none;
+    }
+
+    .assignment-header {
+      background: white !important;
+      border: 1px solid #000 !important;
+      margin-bottom: 16px;
+    }
+
+    .ant-card-body {
+      padding: 20px !important;
+    }
+
+    .customer-assignment-table {
+      .ant-table {
+        font-size: 11px;
+      }
+
+      .ant-table-thead > tr > th {
+        background: #f5f5f5 !important;
+        color: black !important;
+        border: 1px solid #000 !important;
+        padding: 6px 8px !important;
+      }
+
+      .ant-table-tbody > tr > td {
+        border: 1px solid #000 !important;
+        padding: 6px 8px !important;
+        background-color: white !important;
+      }
+    }
+
+    .footer-note {
+      font-size: 14px;
+      margin: 16px 0;
+    }
+
+    .vehicle-info {
+      background: white !important;
+      border: 1px solid #000 !important;
+    }
+  }
+
+  /* 强制分页 */
+  .assignment-header {
+    page-break-inside: avoid;
+  }
+
+  .customer-table-section {
+    page-break-before: auto;
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .tour-itinerary-container {
+    padding: 10px;
+
+    .header-section {
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .ant-row .ant-col {
+      span: 24;
+    }
+
+    .itinerary-table {
+      .ant-table {
+        font-size: 12px;
+      }
+    }
+  }
+} 

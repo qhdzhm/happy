@@ -136,7 +136,9 @@ const VehicleAvailabilityModal = ({ visible, onCancel, vehicle }) => {
     try {
       const data = {
         vehicleId: vehicle.vehicleId,
-        date: dayjs(values.date).format('YYYY-MM-DD'),
+        availableDate: dayjs(values.date).format('YYYY-MM-DD'),
+        startTime: values.startTime || '08:00:00',
+        endTime: values.endTime || '18:00:00',
         status: values.status,
         notes: values.notes || ''
       };
@@ -163,6 +165,8 @@ const VehicleAvailabilityModal = ({ visible, onCancel, vehicle }) => {
         vehicleId: vehicle.vehicleId,
         startDate: dayjs(values.dateRange[0]).format('YYYY-MM-DD'),
         endDate: dayjs(values.dateRange[1]).format('YYYY-MM-DD'),
+        startTime: values.startTime || '08:00:00',
+        endTime: values.endTime || '18:00:00',
         status: values.status,
         notes: values.notes || ''
       };

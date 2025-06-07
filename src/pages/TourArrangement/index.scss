@@ -34,6 +34,37 @@
   }
 }
 
+// DatePicker 样式修复
+.tour-arrangement-datepicker {
+  z-index: 1050 !important;
+  
+  .ant-picker-panel-container {
+    .ant-picker-date-panel {
+      .ant-picker-header {
+        .ant-picker-header-view {
+          // 确保年份显示正确
+          .ant-picker-year-btn,
+          .ant-picker-month-btn {
+            font-weight: 500;
+          }
+        }
+      }
+      
+      .ant-picker-body {
+        .ant-picker-content {
+          .ant-picker-cell {
+            // 确保日期单元格正常显示
+            &.ant-picker-cell-disabled {
+              color: #d9d9d9;
+              cursor: not-allowed;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 // 适配暗色主题
 @media (prefers-color-scheme: dark) {
   .tour-arrangement-container {

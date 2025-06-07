@@ -30,10 +30,16 @@ import OrderEdit from "@/pages/orders/OrderEdit";
 // 导入行程安排组件
 import TourArrangement from "@/pages/TourArrangement";
 
+// 导入行程单页面组件
+import TourItinerary from "@/pages/TourItinerary";
+
 // 导入客服管理组件
 import CustomerService from "@/pages/CustomerService/CustomerService";
 import ServiceWorkbench from "@/pages/CustomerService/ServiceWorkbench";
 import SessionManagement from "@/pages/CustomerService/SessionManagement";
+
+// 导入旅游团分配组件
+import TourAssignment from "@/pages/TourAssignment";
 
 const router = createBrowserRouter([
   {
@@ -95,6 +101,26 @@ const router = createBrowserRouter([
         meta: {
           title: "行程安排",
           icon: "ScheduleOutlined"
+        }
+      },
+      
+      // 导游用车分配表页面路由
+      {
+        path: "/tour-itinerary",
+        element: <TourItinerary />,
+        meta: {
+          title: "导游用车分配表",
+          hidden: true
+        }
+      },
+      
+      // 旅游团分配管理路由
+      {
+        path: "/tour-assignment",
+        element: <TourAssignment />,
+        meta: {
+          title: "分配管理",
+          icon: "DeploymentUnitOutlined"
         }
       },
       

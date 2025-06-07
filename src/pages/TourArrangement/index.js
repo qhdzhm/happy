@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, DatePicker, Button, message, Space, Select, Empty, Spin, Tooltip } from 'antd';
 import { ReloadOutlined, FilterOutlined, SaveOutlined, InfoCircleOutlined } from '@ant-design/icons';
-import moment from 'moment';
+import dayjs from 'dayjs';
 import TourScheduleTable from './components/TourScheduleTable';
 import { getOrderList } from '@/apis/orderApi';
-import { getSchedulesByDateRange, getSchedulesByBookingId, saveBatchSchedules, initOrderSchedules } from '@/api/tourSchedule';
+import { getSchedulesByDateRange, getSchedulesByBookingId, saveBatchSchedules } from '@/api/tourSchedule';
 import request from '@/utils/request';
 import './index.scss';
 
@@ -60,26 +60,106 @@ const getLocationColor = (locationName) => {
 window.getLocationColor = getLocationColor;
 
 const TourArrangement = () => {
-  const [dateRange, setDateRange] = useState([
-    moment().subtract(2, 'month').startOf('day'),
-    moment().add(3, 'month').endOf('day')
-  ]);
+  // 使用完全隔离的日期范围状态管理
+  const createSafeDateRange = useCallback(() => {
+    // 每次都创建全新的dayjs实例，避免引用问题
+    const today = dayjs().startOf('day'); // 确保时间为00:00:00
+    const startDate = dayjs().startOf('month'); // 当月1日
+    const endDate = dayjs().add(6, 'month').endOf('month'); // 6个月后的月末，给更长的默认范围
+    
+    console.log('创建安全日期范围:', {
+      start: startDate.format('YYYY-MM-DD'),
+      end: endDate.format('YYYY-MM-DD'),
+      today: today.format('YYYY-MM-DD')
+    });
+    
+    return [startDate, endDate];
+  }, []);
+
+  const [dateRange, setDateRange] = useState(() => {
+    try {
+      return createSafeDateRange();
+    } catch (error) {
+      console.error('日期初始化失败:', error);
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [scheduleData, setScheduleData] = useState([]);
   const [viewMode, setViewMode] = useState('all'); // 'all', 'day_tour', 'group_tour'
   const [refreshKey, setRefreshKey] = useState(0); // 用于强制刷新数据
-  const [ordersWithoutSchedule, setOrdersWithoutSchedule] = useState([]); // 存储没有行程排序的订单
-  const isInitializing = useRef(false); // 添加标记，防止初始化递归
+
+
+  // 重置日期到当前月份附近
+  const resetDateRange = useCallback(() => {
+    try {
+      const newDateRange = createSafeDateRange();
+      
+      // 验证生成的日期是否有效
+      if (!newDateRange || !Array.isArray(newDateRange) || newDateRange.length !== 2 ||
+          !newDateRange[0].isValid() || !newDateRange[1].isValid()) {
+        console.error('重置时生成的日期无效');
+        message.error('日期重置失败');
+        return;
+      }
+      
+      console.log('重置日期范围到:', {
+        start: newDateRange[0].format('YYYY-MM-DD'),
+        end: newDateRange[1].format('YYYY-MM-DD')
+      });
+      
+      setDateRange(newDateRange);
+      message.success('日期范围已重置到当前月份');
+    } catch (error) {
+      console.error('重置日期范围失败:', error);
+      message.error('日期重置失败，请刷新页面');
+    }
+  }, [createSafeDateRange]);
 
   // 组件挂载时清除本地存储中的行程数据
   useEffect(() => {
     try {
       localStorage.removeItem('tourSchedule_draft');
       localStorage.removeItem('tourSchedule_draftTimestamp');
+      
+      // 验证并修复异常的日期范围
+      if (dateRange && Array.isArray(dateRange) && dateRange.length === 2) {
+        try {
+          const startDate = dateRange[0];
+          const endDate = dateRange[1];
+          
+          // 确保日期对象有效
+          if (!startDate || !endDate || !startDate.isValid() || !endDate.isValid()) {
+            console.warn('检测到无效日期对象，正在重置...');
+            resetDateRange();
+            return;
+          }
+          
+          const currentYear = dayjs().year();
+          
+          // 如果日期范围异常（比如跳到了2048年），重置为正常范围
+          if (startDate.year() > currentYear + 5 || endDate.year() > currentYear + 5 ||
+              startDate.year() < currentYear - 2 || endDate.year() < currentYear - 2) {
+            console.warn('检测到异常日期范围，正在重置...', {
+              start: startDate.format('YYYY-MM-DD'),
+              end: endDate.format('YYYY-MM-DD'),
+              currentYear: currentYear
+            });
+            resetDateRange();
+          }
+        } catch (error) {
+          console.error('验证日期范围时出错:', error);
+          resetDateRange();
+        }
+      } else if (dateRange !== null) {
+        // 如果dateRange不是预期的格式，重置它
+        console.warn('日期范围格式异常，正在重置...', dateRange);
+        resetDateRange();
+      }
     } catch (e) {
       console.error('清除本地存储失败:', e);
     }
-  }, []);
+  }, [resetDateRange]);
 
   useEffect(() => {
     fetchScheduleData();
@@ -95,9 +175,8 @@ const TourArrangement = () => {
     setRefreshKey(prev => prev + 1);
   }, []);
   
-  // 获取订单数据
+  // 获取排团表数据（只从排团表获取，不再从订单表获取）
   const fetchScheduleData = async () => {
-    if (isInitializing.current) return; // 如果正在初始化，直接返回，防止递归
     
     setLoading(true);
     try {
@@ -105,25 +184,11 @@ const TourArrangement = () => {
       const startDate = formatDate(dateRange[0]);
       const endDate = formatDate(dateRange[1]);
       
-      console.log('获取日期范围内的行程排序数据:', startDate, '至', endDate);
+      console.log('🔄 只从排团表获取行程数据:', startDate, '至', endDate);
       
-      // 首先获取自定义排序的行程数据
+      // 只获取排团表的行程数据
       const scheduleResponse = await getSchedulesByDateRange(startDate, endDate);
       
-      // 同时获取原始订单数据
-      const orderParams = {
-        pageSize: 100,
-        page: 1
-      };
-      
-      if (viewMode !== 'all') {
-        orderParams.tourType = viewMode;
-      }
-      
-      const orderResponse = await getOrderList(orderParams);
-      
-      // 处理行程排序数据
-      let scheduleData = [];
       if (scheduleResponse?.code === 1) {
         const scheduleList = scheduleResponse.data || [];
         
@@ -133,52 +198,29 @@ const TourArrangement = () => {
           filteredSchedules = scheduleList.filter(item => item.tourType === viewMode);
         }
         
-        // 如果有行程排序数据，处理这些数据
         if (filteredSchedules.length > 0) {
-          console.log(`找到${filteredSchedules.length}条自定义排序的行程数据`);
+          console.log(`✅ 找到${filteredSchedules.length}条排团表行程数据`);
           
-          // 转换API数据为组件需要的格式
-          scheduleData = await formatScheduleDataForDisplay(filteredSchedules);
+          // 转换为组件需要的格式
+          const formattedData = await formatScheduleDataForDisplay(filteredSchedules);
+          setScheduleData(formattedData);
+          
+          if (formattedData.length === 0) {
+            message.info('排团表数据处理后为空，请检查数据格式');
+          }
+        } else {
+          console.log('📭 排团表中没有找到符合条件的行程数据');
+          message.info(`没有找到${viewMode === 'day_tour' ? '一日游' : (viewMode === 'group_tour' ? '跟团游' : '')}类型的行程数据`);
+          setScheduleData([]);
         }
+      } else {
+        console.log('⚠️ 排团表API调用失败或返回空数据');
+        message.warning('无法获取排团表数据，请检查后端服务');
+        setScheduleData([]);
       }
-      
-      // 处理原始订单数据
-      let orderData = [];
-      if (orderResponse?.code === 1 && orderResponse.data?.records?.length > 0) {
-        const orderList = orderResponse.data.records;
-        console.log(`找到${orderList.length}条原始订单数据`);
-        
-        // 转换API数据为组件需要的格式
-        orderData = await formatApiDataForSchedule(orderList);
-      }
-      
-      // 合并两种数据，但避免重复
-      const mergedData = [...scheduleData];
-      
-      // 创建一个已存在订单ID的集合
-      const existingBookingIds = new Set(scheduleData.map(item => item.id));
-      
-      // 添加不重复的订单数据
-      orderData.forEach(order => {
-        if (!existingBookingIds.has(order.id)) {
-          mergedData.push(order);
-        }
-      });
-      
-      // 如果合并后仍然没有数据，显示提示
-      if (mergedData.length === 0) {
-        message.info(`没有找到${viewMode === 'day_tour' ? '一日游' : (viewMode === 'group_tour' ? '跟团游' : '')}类型的行程数据`);
-      }
-      
-      // 设置数据
-      setScheduleData(mergedData);
-      
-      // 检查哪些订单需要初始化
-      if (orderResponse?.code === 1 && orderResponse.data?.records?.length > 0) {
-        await checkOrdersForInit(orderResponse.data.records);
-      }
+
     } catch (error) {
-      console.error('获取行程排序数据失败:', error);
+      console.error('❌ 获取排团表数据失败:', error);
       message.error('获取数据失败: ' + (error.message || '未知错误'));
       setScheduleData([]);
     } finally {
@@ -186,165 +228,48 @@ const TourArrangement = () => {
     }
   };
   
-  // 仅用于检查哪些订单需要初始化 - 不影响当前显示
-  const fetchOrdersForInitCheck = async () => {
-    try {
-      const params = {
-        pageSize: 100,
-        page: 1
-      };
-      
-      if (viewMode !== 'all') {
-        params.tourType = viewMode;
-      }
-      
-      // 获取订单列表但不显示加载状态
-      const response = await getOrderList(params);
-      
-      if (response?.code === 1 && response.data?.records?.length > 0) {
-        // 检查哪些订单需要初始化
-        await checkOrdersForInit(response.data.records);
-      }
-    } catch (error) {
-      console.error('检查订单初始化状态失败:', error);
-    }
-  };
-  
-  // 检查哪些订单需要初始化，但不自动初始化
-  const checkOrdersForInit = async (orders) => {
-    if (!orders || orders.length === 0) return;
-    
-    // 记录需要初始化的订单
-    const ordersToInit = [];
-    const scheduledOrderIds = new Set();
-    
-    // 批量获取订单ID列表，减少API请求次数
-    const orderIds = orders.map(order => parseInt(order.id)).filter(id => id);
-    
-    try {
-      // 分批处理，每次处理10个订单
-      const batchSize = 10;
-      for (let i = 0; i < orderIds.length; i += batchSize) {
-        const batchIds = orderIds.slice(i, i + batchSize);
-        
-        // 并行处理每批订单
-        await Promise.all(batchIds.map(async (bookingId) => {
-          try {
-            const response = await getSchedulesByBookingId(bookingId);
-            if (response && response.code === 1 && response.data && response.data.length > 0) {
-              // 已有行程排序数据
-              scheduledOrderIds.add(bookingId);
-            } else {
-              // 没有行程排序数据，需要初始化
-              const order = orders.find(o => parseInt(o.id) === bookingId);
-              if (order) {
-                ordersToInit.push(order);
-              }
-            }
-          } catch (error) {
-            console.error(`检查订单 ${bookingId} 行程排序数据失败:`, error);
-            // 发生错误时，也标记为需要初始化
-            const order = orders.find(o => parseInt(o.id) === bookingId);
-            if (order) {
-              ordersToInit.push(order);
-            }
-          }
-        }));
-      }
-    } catch (error) {
-      console.error('批量检查订单行程排序数据失败:', error);
-    }
-    
-    // 如果有需要初始化的订单，提示用户
-    if (ordersToInit.length > 0) {
-      setOrdersWithoutSchedule(ordersToInit);
-      message.info(`检测到 ${ordersToInit.length} 个订单没有行程排序数据，点击"初始化行程"按钮可自动创建`);
-    } else {
-      // 清空需要初始化的订单列表
-      setOrdersWithoutSchedule([]);
-    }
-  };
-  
-  // 批量初始化所有未排序订单
-  const batchInitOrderSchedules = async () => {
-    if (ordersWithoutSchedule.length === 0) {
-      message.info('没有需要初始化的订单');
-          return;
-        }
-        
-    setLoading(true);
-    try {
-      let successCount = 0;
-      let failCount = 0;
-      let successfulOrderIds = []; // 跟踪成功初始化的订单ID
-      
-      // 分批处理，每次处理5个订单
-      const batchSize = 5;
-      const totalOrders = ordersWithoutSchedule.length;
-      
-      for (let i = 0; i < totalOrders; i += batchSize) {
-        const batchOrders = ordersWithoutSchedule.slice(i, i + batchSize);
-        
-        // 创建一个进度提示
-        if (totalOrders > 10) {
-          message.loading(`正在初始化订单 ${i+1}-${Math.min(i+batchSize, totalOrders)}/${totalOrders}...`, 1);
-        }
-        
-        // 并行处理每批订单
-        const results = await Promise.allSettled(
-          batchOrders.map(order => {
-            const bookingId = parseInt(order.id);
-            if (!bookingId) return Promise.reject(new Error('无效的订单ID'));
-            
-            return initOrderSchedules(bookingId);
-          })
-        );
-        
-        // 处理结果
-        results.forEach((result, index) => {
-          if (result.status === 'fulfilled' && result.value?.code === 1) {
-            successCount++;
-            // 记录成功的订单ID
-            const bookingId = parseInt(batchOrders[index].id);
-            if (bookingId) {
-              successfulOrderIds.push(bookingId);
-            }
-          } else {
-            failCount++;
-          }
-        });
-      }
-      
-      if (successCount > 0) {
-        message.success(`成功初始化 ${successCount} 个订单的行程排序`);
-        
-        // 直接更新UI，移除已成功初始化的订单
-        if (successfulOrderIds.length > 0) {
-          setOrdersWithoutSchedule(prev => 
-            prev.filter(order => !successfulOrderIds.includes(parseInt(order.id)))
-          );
-        }
-        
-        // 刷新数据以显示新初始化的行程
-        handleRefresh();
-      }
-      
-      if (failCount > 0) {
-        message.error(`${failCount} 个订单初始化失败`);
-      }
-    } catch (error) {
-      console.error('批量初始化订单失败:', error);
-      message.error('批量初始化失败: ' + (error.message || '未知错误'));
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   // 格式化行程排序数据为显示格式
   const formatScheduleDataForDisplay = async (scheduleList) => {
     if (!scheduleList || !Array.isArray(scheduleList) || scheduleList.length === 0) {
       return [];
     }
+    
+    // 🔍 排团表数据调试 - 检查原始API响应（包括酒店字段）
+    console.log('🔍 [排团表数据调试] 收到的原始数据:', {
+      数据条数: scheduleList.length,
+      前3条数据样例: scheduleList.slice(0, 3).map(item => ({
+        订单ID: item.bookingId,
+        订单号: item.orderNumber,
+        联系人: item.contactPerson,
+        电话: item.contactPhone,
+        成人数: item.adultCount,
+        儿童数: item.childCount,
+        接客地点: item.pickupLocation,
+        送客地点: item.dropoffLocation,
+        航班号: item.flightNumber,
+        返程航班: item.returnFlightNumber,
+        第几天: item.dayNumber,
+        行程标题: item.title,
+        特殊要求: item.specialRequests,
+        // 🏨 酒店信息
+        酒店星级: item.hotelLevel,
+        房型: item.roomType,
+        房间数: item.hotelRoomCount,
+        入住日期: item.hotelCheckInDate,
+        退房日期: item.hotelCheckOutDate,
+        房间详情: item.roomDetails
+      })),
+      所有接客地点数据: scheduleList.map(item => item.pickupLocation).filter(Boolean),
+      所有送客地点数据: scheduleList.map(item => item.dropoffLocation).filter(Boolean),
+      联系人数据: scheduleList.map(item => item.contactPerson).filter(Boolean),
+      电话数据: scheduleList.map(item => item.contactPhone).filter(Boolean),
+      // 🏨 酒店数据统计
+      有酒店星级的记录: scheduleList.filter(item => item.hotelLevel).length,
+      有房型的记录: scheduleList.filter(item => item.roomType).length,
+      有房间数的记录: scheduleList.filter(item => item.hotelRoomCount > 0).length
+    });
     
     // 获取随机颜色，但对相同名称生成相同颜色
     const getRandomColor = (name) => {
@@ -407,6 +332,28 @@ const TourArrangement = () => {
         tourId: schedule.tourId,
         tourType: schedule.tourType,
         scheduleId: schedule.id, // 添加scheduleId用于更新
+        dayNumber: schedule.dayNumber || 0, // 添加天数信息
+        // 🎯 确保所有排团表字段都正确传递到前端（包括酒店字段）
+        pickupLocation: schedule.pickupLocation,
+        dropoffLocation: schedule.dropoffLocation,
+        contactPerson: schedule.contactPerson,
+        contactPhone: schedule.contactPhone,
+        adultCount: schedule.adultCount,
+        childCount: schedule.childCount,
+        flightNumber: schedule.flightNumber,
+        returnFlightNumber: schedule.returnFlightNumber,
+        arrivalLandingTime: schedule.arrivalLandingTime,
+        arrivalDepartureTime: schedule.arrivalDepartureTime,
+        departureDepartureTime: schedule.departureDepartureTime,
+        departureLandingTime: schedule.departureLandingTime,
+        specialRequests: schedule.specialRequests,
+        // 🏨 酒店信息字段
+        hotelLevel: schedule.hotelLevel,
+        roomType: schedule.roomType,
+        hotelRoomCount: schedule.hotelRoomCount,
+        hotelCheckInDate: schedule.hotelCheckInDate,
+        hotelCheckOutDate: schedule.hotelCheckOutDate,
+        roomDetails: schedule.roomDetails,
         order: {
           bookingId: schedule.bookingId,
           tourId: schedule.tourId,
@@ -419,166 +366,57 @@ const TourArrangement = () => {
           pickupLocation: schedule.pickupLocation,
           dropoffLocation: schedule.dropoffLocation,
           orderNumber: schedule.orderNumber || '',
-          specialRequests: schedule.specialRequests || ''
+          specialRequests: schedule.specialRequests || '',
+          dayNumber: schedule.dayNumber || 0, // 在order对象中也添加天数信息
+          // 🏨 在order对象中也添加酒店信息
+          hotelLevel: schedule.hotelLevel,
+          roomType: schedule.roomType,
+          hotelRoomCount: schedule.hotelRoomCount,
+          hotelCheckInDate: schedule.hotelCheckInDate,
+          hotelCheckOutDate: schedule.hotelCheckOutDate,
+          roomDetails: schedule.roomDetails
         }
       };
       
       // 更新开始和结束日期
-      if (!order.startDate || moment(dateStr).isBefore(order.startDate)) {
-        order.startDate = moment(dateStr);
+      if (!order.startDate || dayjs(dateStr).isBefore(order.startDate)) {
+        order.startDate = dayjs(dateStr);
       }
-      if (!order.endDate || moment(dateStr).isAfter(order.endDate)) {
-        order.endDate = moment(dateStr);
+      if (!order.endDate || dayjs(dateStr).isAfter(order.endDate)) {
+        order.endDate = dayjs(dateStr);
       }
     });
     
     // 转换为数组并按开始日期排序
-    return Array.from(orderMap.values())
+    const finalData = Array.from(orderMap.values())
       .filter(order => Object.keys(order.dates).length > 0)
       .sort((a, b) => a.startDate - b.startDate);
-  };
-
-  // 格式化原API数据为组件需要的格式（保留原来的方法作为备用）
-  const formatApiDataForSchedule = async (apiData) => {
-    if (!apiData || !Array.isArray(apiData) || apiData.length === 0) {
-      return [];
-    }
-
-    // 首先处理所有订单，提取日期信息
-    const processedOrders = await Promise.all(apiData.map(async order => {
-      let itinerary = [];
-
-      // 直接从订单的itineraryDetails解析行程详情
-      if (order.itineraryDetails) {
-        try {
-          const parsedItinerary = JSON.parse(order.itineraryDetails);
-          itinerary = parsedItinerary.map(day => {
-            return {
-              day: day.day_number || 1,
-              location: day.title || day.activity || day.location || '待安排',
-              description: day.description || ''
-            };
-          });
-          console.log(`已解析订单[${order.bookingId}]的行程数据，共${itinerary.length}天`);
-        } catch (e) {
-          console.error('解析行程详情失败:', e);
-          itinerary = [];
-        }
-      }
-
-      // 如果仍然没有行程数据，使用开始和结束日期创建默认行程
-      if (itinerary.length === 0) {
-        if (order.tourStartDate && order.tourEndDate) {
-          const startDate = moment(order.tourStartDate);
-          const endDate = moment(order.tourEndDate);
-          const days = endDate.diff(startDate, 'days') + 1;
-          
-          // 获取旅游产品名称作为默认位置
-          const locationName = order.tourName || order.tourLocation || (order.tourType === 'day_tour' ? '一日游' : '跟团游');
-          
-          // 为一日游特别处理
-          if (order.tourType === 'day_tour') {
-            itinerary = [{
-              day: 1,
-              location: locationName,
-              description: `${locationName}行程`
-            }];
-            console.log(`为一日游订单[${order.bookingId}]创建默认行程`);
-          } else {
-          // 为每天创建默认行程
-          itinerary = Array.from({ length: days }, (_, i) => ({
-            day: i + 1,
-            location: locationName || '待安排'
-          }));
-        }
-        }
-      }
-
-      // 特殊情况：如果是一日游但仍然没有行程数据，强制创建一个默认行程
-      if (itinerary.length === 0 && order.tourType === 'day_tour') {
-        const locationName = order.tourName || order.tourLocation || '一日游';
-        itinerary = [{
-          day: 1,
-          location: locationName,
-          description: `${locationName}行程`
-        }];
-        console.log(`为一日游订单[${order.bookingId}]强制创建默认行程`);
-      }
-
-      // 收集所有该订单的行程日期和地点
-      const dates = {};
-      // 安全获取开始日期，如果为null则使用当前日期
-      const startDate = order.tourStartDate ? moment(order.tourStartDate) : moment();
-      
-      itinerary.forEach((item, index) => {
-        // 计算实际日期
-        const actualDate = startDate.clone().add(index, 'days');
-        const dateStr = actualDate.format('YYYY-MM-DD');
-        
-        // 构建位置名称，优先使用行程中的位置，如果没有则使用旅游产品名称
-        let locationName = item.location || '待安排';
-        
-        // 对于位置是"待安排"的，尝试使用旅游产品名称
-        if (locationName === '待安排' && order.tourName) {
-          locationName = order.tourName;
-        }
-        
-        // 获取位置颜色，基于位置名称的一致性
-        const locationColor = getLocationColor(locationName);
-        
-        // 确保tourId不为空
-        const tourId = order.tourId || 1; // 默认值为1，避免null
-        
-        dates[dateStr] = {
-          id: `loc-${index}`,
-          name: locationName,
-          color: locationColor,
-          description: item.description || '',
-          tourId: tourId, // 添加tourId
-          tourType: order.tourType || 'group_tour', // 添加tourType
-          order: {
-            ...order,
-            tourId: tourId, // 确保order中也有tourId
-            orderNumber: order.orderNumber || '',
-            specialRequests: order.specialRequests || ''
-          }
-        };
-      });
-      
-      // 提取短名称作为显示，例如"塔斯马尼亚环岛游"简化为"塔斯"
-      let shortName = order.tourName || '';
-      if (shortName.length > 4) {
-        // 如果名称很长，提取前两个字作为简称
-        shortName = shortName.substring(0, 2);
-      }
-      
-      return {
-        id: order.bookingId.toString(),
-        customer: {
-          id: order.userId ? order.userId.toString() : 'unknown',
-          name: order.contactPerson || '未知客户',
-          phone: order.contactPhone || '',
-          pax: (order.adultCount || 0) + (order.childCount || 0),
-          bookingId: order.bookingId.toString() || '',
-          orderNumber: order.orderNumber || '',
-          hotel: order.pickupLocation || '',
-          shortName: shortName
-        },
-        startDate: order.tourStartDate ? moment(order.tourStartDate) : moment(),
-        endDate: order.tourEndDate ? moment(order.tourEndDate) : (order.tourStartDate ? moment(order.tourStartDate) : moment()),
-        type: order.tourType,
-        dates: dates,
-        orderNumber: order.orderNumber || '',
-        specialRequests: order.specialRequests || ''
-      };
-    }));
-
-    // 过滤掉没有行程的订单
-    const validOrders = processedOrders.filter(order => Object.keys(order.dates).length > 0);
     
-    // 使用新方法排列订单
-    return arrangeOrdersByTimeline(validOrders);
+    // 🔍 最终数据格式调试
+    console.log('🔍 [最终数据格式] 转换后的显示数据:', {
+      订单总数: finalData.length,
+      详细数据: finalData.map(order => ({
+        订单ID: order.id,
+        客户姓名: order.customer.name,
+        客户电话: order.customer.phone,
+        接送地点: order.customer.hotel,
+        日期数据: Object.keys(order.dates).map(date => ({
+          日期: date,
+          地点: order.dates[date].name,
+          接客地点: order.dates[date].pickupLocation,
+          送客地点: order.dates[date].dropoffLocation,
+          联系人: order.dates[date].contactPerson,
+          电话: order.dates[date].contactPhone,
+          成人数: order.dates[date].adultCount,
+          儿童数: order.dates[date].childCount
+        }))
+      }))
+    });
+    
+    return finalData;
   };
+
+
 
   // 新增：按时间线排列订单
   const arrangeOrdersByTimeline = (orders) => {
@@ -588,7 +426,7 @@ const TourArrangement = () => {
     const sortedOrders = [...orders].sort((a, b) => {
       const aFirstDate = Object.keys(a.dates).sort()[0];
       const bFirstDate = Object.keys(b.dates).sort()[0];
-      return moment(aFirstDate).valueOf() - moment(bFirstDate).valueOf();
+      return dayjs(aFirstDate).valueOf() - dayjs(bFirstDate).valueOf();
     });
     
     // 创建日期范围到订单的映射
@@ -658,7 +496,7 @@ const TourArrangement = () => {
       // 如果列号相同，按开始日期排序
       const aFirstDate = Object.keys(a.dates).sort()[0];
       const bFirstDate = Object.keys(b.dates).sort()[0];
-      return moment(aFirstDate).valueOf() - moment(bFirstDate).valueOf();
+      return dayjs(aFirstDate).valueOf() - dayjs(bFirstDate).valueOf();
     });
     
     console.log(`订单排列完成，共${sortedOrders.length}个订单，使用了${Math.max(...sortedOrders.map(o => o.columnIndex)) + 1}列`);
@@ -667,8 +505,76 @@ const TourArrangement = () => {
   };
 
   const handleDateChange = (dates) => {
-    if (dates && dates.length === 2) {
-      setDateRange(dates);
+    console.log('DatePicker onChange 触发:', dates);
+    
+    // 如果dates为null或undefined，清空选择
+    if (!dates) {
+      console.log('日期被清空');
+      setDateRange(null);
+      return;
+    }
+    
+    if (!Array.isArray(dates) || dates.length !== 2) {
+      console.log('日期数据格式无效，忽略更改');
+      return;
+    }
+    
+    // 检查每个日期是否有效
+    if (!dates[0] || !dates[1]) {
+      console.log('日期数组包含无效值');
+      return;
+    }
+    
+    try {
+      // 确保dates是dayjs对象
+      const startDate = dayjs.isDayjs(dates[0]) ? dates[0] : dayjs(dates[0]);
+      const endDate = dayjs.isDayjs(dates[1]) ? dates[1] : dayjs(dates[1]);
+      
+      // 验证dayjs对象是否有效
+      if (!startDate.isValid() || !endDate.isValid()) {
+        console.error('无效的日期对象');
+        message.error('选择的日期无效，请重新选择');
+        return;
+      }
+      
+      console.log('解析后的日期:', {
+        start: startDate.format('YYYY-MM-DD'),
+        end: endDate.format('YYYY-MM-DD')
+      });
+      
+      // 检查年份范围（限制在合理范围内）
+      const currentYear = dayjs().year();
+      const minYear = currentYear - 2; // 允许过去2年
+      const maxYear = currentYear + 5;  // 允许未来5年
+      
+      if (startDate.year() < minYear || startDate.year() > maxYear ||
+          endDate.year() < minYear || endDate.year() > maxYear) {
+        console.warn('日期年份超出合理范围:', {
+          startYear: startDate.year(),
+          endYear: endDate.year(),
+          allowedRange: `${minYear}-${maxYear}`
+        });
+        message.warning('请选择合理的日期范围（支持过去2年至未来5年）');
+        return;
+      }
+      
+      // 检查日期范围不超过1年
+      const diffDays = endDate.diff(startDate, 'days');
+      if (diffDays > 365) {
+        message.warning('日期范围不能超过1年');
+        return;
+      }
+      
+      if (diffDays < 0) {
+        message.warning('结束日期不能早于开始日期');
+        return;
+      }
+      
+      // 确保设置的是全新的dayjs对象副本
+      setDateRange([startDate.clone(), endDate.clone()]);
+    } catch (error) {
+      console.error('处理日期变更时出错:', error);
+      message.error('日期处理失败，请重新选择');
     }
   };
 
@@ -725,41 +631,21 @@ const TourArrangement = () => {
             const locationName = location.name || locationInfo.name || '待安排';
             const color = location.color || locationInfo.color || getLocationColor(locationName);
             
-            // 获取日期中的天数，用于dayNumber
-            const dayNumber = parseInt(dateStr.split('-')[2]) || displayOrderCounter;
+            // 计算基于行程起始日期的相对天数
+            const tourStartDate = sortedDates[0]; // 行程第一天
+            const tourEndDate = sortedDates[sortedDates.length - 1]; // 行程最后一天
+            const currentDate = dateStr;
+            const daysDiff = dayjs(currentDate).diff(dayjs(tourStartDate), 'day');
+            const dayNumber = daysDiff + 1; // 第一天为1，第二天为2，以此类推
             
-            // 获取所有必要的字段
+            // 拖拽保存时只传递核心调整信息，让后端保持原有的业务逻辑
             const schedule = {
-              id: scheduleId, // 如果是更新已有数据，使用原始ID
-              bookingId: bookingId,
-              tourDate: dateStr,
-              tourId: tourId,
-              tourType: tourType,
-              title: locationName,
-              description: location.description || locationInfo.description || '',
-              dayNumber: dayNumber, // 日期中的天数
-              displayOrder: displayOrderCounter, // 显示顺序，从1开始递增
-              orderNumber: orderInfo.orderNumber || group.orderNumber || '',
-              adultCount: orderInfo.adultCount || 0,
-              childCount: orderInfo.childCount || 0,
-              contactPerson: orderInfo.contactPerson || group.customer?.name || '',
-              contactPhone: orderInfo.contactPhone || group.customer?.phone || '',
-              pickupLocation: orderInfo.pickupLocation || group.customer?.hotel || '',
-              dropoffLocation: orderInfo.dropoffLocation || '',
-              specialRequests: orderInfo.specialRequests || group.specialRequests || '',
-              luggageCount: orderInfo.luggageCount || 0,
-              hotelLevel: orderInfo.hotelLevel || '',
-              roomType: orderInfo.roomType || '',
-              serviceType: orderInfo.serviceType || tourType === 'day_tour' ? '一日游' : '跟团游',
-              paymentStatus: orderInfo.paymentStatus || '',
-              totalPrice: orderInfo.totalPrice || 0,
-              userId: orderInfo.userId || null,
-              agentId: orderInfo.agentId || null,
-              groupSize: orderInfo.groupSize || (orderInfo.adultCount + orderInfo.childCount) || 0,
-              status: orderInfo.status || 'confirmed',
-              tourName: orderInfo.tourName || locationInfo.name || '',
-              tourLocation: orderInfo.tourLocation || '',
-              color: color // 保存颜色信息
+              id: scheduleId, // 排团表记录ID（用于更新已有记录）
+              bookingId: bookingId, // 订单ID
+              tourDate: dateStr, // 调整后的日期
+              dayNumber: dayNumber, // 调整后的天数
+              title: locationName, // 调整后的行程标题
+              displayOrder: displayOrderCounter // 显示顺序
             };
             
             schedules.push(schedule);
@@ -809,82 +695,7 @@ const TourArrangement = () => {
     }
   };
 
-  // 初始化订单行程
-  const initOrderSchedule = async (bookingId) => {
-    if (!bookingId) return;
-    
-    setLoading(true);
-    try {
-      const response = await initOrderSchedules(bookingId);
-      
-      if (response && response.code === 1) {
-        message.success(`订单 ${bookingId} 的行程已成功初始化`);
-        
-        // 直接更新UI，而不是重新加载
-        const orderToRemove = ordersWithoutSchedule.find(o => parseInt(o.id) === bookingId);
-        if (orderToRemove) {
-          // 从未初始化的订单列表中移除
-          setOrdersWithoutSchedule(prev => prev.filter(o => parseInt(o.id) !== bookingId));
-        }
-        
-        // 刷新数据以显示新初始化的行程
-        handleRefresh();
-      } else {
-        message.error(response?.msg || `初始化订单 ${bookingId} 的行程失败`);
-      }
-    } catch (error) {
-      console.error('初始化行程失败:', error);
-      message.error('初始化行程失败: ' + (error.message || '未知错误'));
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  // 备用方法：当行程排序API不可用时，使用订单API获取数据
-  const fetchOrdersAsBackup = async () => {
-    if (isInitializing.current) return; // 防止递归
-    isInitializing.current = true; // 设置初始化标记
-    
-    try {
-      // 准备API请求参数
-      const params = {
-        pageSize: 100, // 获取足够多的订单
-        page: 1,
-      };
-      
-      // 根据视图模式设置筛选条件
-      if (viewMode !== 'all') {
-        params.tourType = viewMode;
-      }
-      
-      console.log('获取原始订单数据，参数:', params);
-      
-      // 调用API获取订单列表
-      const response = await getOrderList(params);
-      
-      if (response?.code === 1 && response.data?.records?.length > 0) {
-        const orderList = response.data.records;
-        console.log(`找到${orderList.length}条原始订单数据`);
-        
-        // 转换API数据为组件需要的格式
-        const formattedData = await formatApiDataForSchedule(orderList);
-        setScheduleData(formattedData);
-        
-        // 检查哪些订单需要初始化
-        await checkOrdersForInit(orderList);
-      } else {
-        console.log('没有找到匹配条件的订单数据');
-        message.info('没有找到匹配条件的订单数据');
-        setScheduleData([]);
-      }
-    } catch (error) {
-      console.error('获取订单数据失败:', error);
-      message.error('获取数据失败，请检查网络连接或API配置');
-      setScheduleData([]);
-    } finally {
-      isInitializing.current = false; // 重置初始化标记
-    }
-  };
 
   return (
     <div className="tour-arrangement-container">
@@ -900,10 +711,61 @@ const TourArrangement = () => {
         extra={
           <Space>
             <RangePicker
-              value={dateRange}
+              value={dateRange && dateRange.length === 2 ? dateRange : null}
               onChange={handleDateChange}
+              onOpenChange={(open) => {
+                console.log('DatePicker onOpenChange:', open);
+                
+                if (open && dateRange) {
+                  console.log('当前dateRange值:', dateRange?.map(d => d?.format?.('YYYY-MM-DD')));
+                  
+                  // 强制检查并立即修复异常的日期
+                  if (Array.isArray(dateRange) && dateRange.length === 2) {
+                    const startDate = dateRange[0];
+                    const endDate = dateRange[1];
+                    const currentYear = dayjs().year();
+                    
+                    // 更严格的检查
+                    if (startDate && startDate.year && 
+                        (startDate.year() > currentYear + 5 || 
+                         startDate.year() < currentYear - 2 ||
+                         endDate.year() > currentYear + 5 || 
+                         endDate.year() < currentYear - 2)) {
+                      
+                      console.error('检测到异常日期，强制重置:', {
+                        startYear: startDate.year(),
+                        endYear: endDate.year(),
+                        currentYear: currentYear
+                      });
+                      
+                      // 立即重置，不等待下次渲染
+                      setTimeout(() => resetDateRange(), 0);
+                      return;
+                    }
+                  }
+                }
+              }}
               allowClear={false}
               format="YYYY-MM-DD"
+              disabledDate={(current) => {
+                // 禁用超出合理范围的日期
+                if (!current) return false;
+                
+                const today = dayjs();
+                const currentYear = today.year();
+                
+                // 合理的年份限制：过去2年到未来5年
+                if (current.year() < currentYear - 2 || current.year() > currentYear + 5) {
+                  return true;
+                }
+                
+                return false;
+              }}
+              showTime={false}
+              allowEmpty={[false, false]}
+              placeholder={['开始日期', '结束日期']}
+              popupClassName="tour-arrangement-datepicker"
+              inputReadOnly={true}
             />
             <Select 
               defaultValue="all" 
@@ -915,21 +777,19 @@ const TourArrangement = () => {
               <Option value="day_tour">一日游</Option>
               <Option value="group_tour">跟团游</Option>
             </Select>
-            {ordersWithoutSchedule.length > 0 && (
-              <Button
-                type="primary"
-                onClick={batchInitOrderSchedules}
-                loading={loading}
-              >
-                初始化行程({ordersWithoutSchedule.length})
-              </Button>
-            )}
+
             <Button 
               icon={<ReloadOutlined />} 
               onClick={handleRefresh}
               loading={loading}
             >
               刷新数据
+            </Button>
+            <Button 
+              onClick={resetDateRange}
+              type="dashed"
+            >
+              重置日期
             </Button>
             <Button
               icon={<SaveOutlined />}
@@ -965,7 +825,6 @@ const TourArrangement = () => {
             loading={loading}
             dateRange={dateRange}
             onUpdate={handleSaveArrangement}
-            onInitSchedule={initOrderSchedule}
           />
         )}
       </Card>

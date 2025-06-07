@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Form, Select, DatePicker, TimePicker, Button, Table, message, Tabs, Card, Row, Col, Tag, Divider, Input } from 'antd';
 import { UserOutlined, CarOutlined, ClockCircleOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import moment from 'moment';
-import { getAvailableGuides, getAvailableVehicles, autoAssignGuideVehicle, manualAssignGuideVehicle } from '../../api/guideAssignment';
+import { getAvailableGuides, getAvailableVehicles, autoAssignGuideVehicle, manualAssignGuideVehicle, updateGuideVehicleAssignment } from '../../api/guideAssignment';
 
 const { Option } = Select;
 
@@ -20,6 +20,12 @@ const GuideVehicleAssignModal = ({
   const [selectedGuide, setSelectedGuide] = useState(null);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [assignmentMode, setAssignmentMode] = useState('auto'); // 'auto' or 'manual'
+  
+  // 检测是否为修改模式
+  const isEditMode = selectedOrders.length > 0 && selectedOrders[0]?.isEdit;
+  const assignmentId = isEditMode ? selectedOrders[0]?.assignmentId : null;
+  const currentGuideId = isEditMode ? selectedOrders[0]?.currentGuideId : null;
+  const currentVehicleId = isEditMode ? selectedOrders[0]?.currentVehicleId : null;
 
   // 计算总人数和地点信息
   const totalPeople = selectedOrders.reduce((sum, order) => {
@@ -49,15 +55,39 @@ const GuideVehicleAssignModal = ({
       console.log('Modal打开，selectedOrders:', selectedOrders);
       console.log('计算的totalPeople:', totalPeople);
       console.log('计算的mainLocation:', mainLocation);
+      console.log('修改模式:', isEditMode, '分配ID:', assignmentId);
+      console.log('传入的selectedDate:', selectedDate);
+      console.log('selectedDate类型:', typeof selectedDate, selectedDate?.constructor?.name);
+      
+      // 处理日期，确保使用正确的格式
+      let targetDate;
+      if (selectedDate) {
+        // 如果是moment对象，直接使用
+        if (moment.isMoment(selectedDate)) {
+          targetDate = selectedDate.clone();
+        } else {
+          // 如果是其他格式，转换为moment
+          targetDate = moment(selectedDate);
+        }
+        console.log('处理后的targetDate:', targetDate.format('YYYY-MM-DD'));
+      } else {
+        targetDate = moment();
+        console.log('使用当前日期作为默认值:', targetDate.format('YYYY-MM-DD'));
+      }
       
       // 设置默认值
       form.setFieldsValue({
-        assignmentDate: selectedDate ? moment(selectedDate) : moment(),
-        startTime: moment('08:00', 'HH:mm'),
-        endTime: moment('18:00', 'HH:mm'),
+        assignmentDate: targetDate,
+        startTime: moment('08:00:00', 'HH:mm:ss'),
+        endTime: moment('18:00:00', 'HH:mm:ss'),
         location: mainLocation,
         totalPeople: totalPeople || 1
       });
+      
+      // 如果是修改模式，设置为手动分配模式
+      if (isEditMode) {
+        setAssignmentMode('manual');
+      }
       
       // 如果有订单数据或者强制加载，则加载可用资源
       if (selectedOrders.length > 0 || totalPeople > 0) {
@@ -66,16 +96,24 @@ const GuideVehicleAssignModal = ({
         console.warn('没有选中的订单，跳过加载资源');
       }
     }
-  }, [visible, selectedOrders, selectedDate, mainLocation, totalPeople]);
+  }, [visible, selectedOrders, selectedDate, mainLocation, totalPeople, isEditMode, assignmentId]);
 
   const loadAvailableResources = async () => {
     try {
       setLoading(true);
-      const date = form.getFieldValue('assignmentDate')?.format('YYYY-MM-DD') || moment().format('YYYY-MM-DD');
-      const startTime = form.getFieldValue('startTime')?.format('HH:mm') || '08:00';
-      const endTime = form.getFieldValue('endTime')?.format('HH:mm') || '18:00';
+      
+      // 详细调试表单中的日期值
+      const formDate = form.getFieldValue('assignmentDate');
+      console.log('表单中的assignmentDate值:', formDate);
+      console.log('表单中的assignmentDate类型:', typeof formDate, formDate?.constructor?.name);
+      console.log('表单中的assignmentDate格式化:', formDate?.format('YYYY-MM-DD'));
+      
+      const date = formDate?.format('YYYY-MM-DD') || moment().format('YYYY-MM-DD');
+      const startTime = form.getFieldValue('startTime')?.format('HH:mm:ss') || '08:00:00';
+      const endTime = form.getFieldValue('endTime')?.format('HH:mm:ss') || '18:00:00';
       
       console.log('加载可用资源参数:', { date, startTime, endTime, mainLocation, totalPeople });
+      console.log('当前时间用于对比:', moment().format('YYYY-MM-DD HH:mm:ss'));
       
       const [guidesRes, vehiclesRes] = await Promise.all([
         getAvailableGuides(date, startTime, endTime, mainLocation),
@@ -88,6 +126,17 @@ const GuideVehicleAssignModal = ({
       // 处理响应数据
       if (guidesRes && guidesRes.code === 1) {
         setAvailableGuides(guidesRes.data || []);
+        
+        // 如果是修改模式，预选当前导游
+        if (isEditMode && currentGuideId) {
+          const currentGuide = (guidesRes.data || []).find(guide => 
+            guide.guideId === currentGuideId || guide.id === currentGuideId
+          );
+          if (currentGuide) {
+            setSelectedGuide(currentGuide);
+            console.log('预选当前导游:', currentGuide);
+          }
+        }
       } else {
         console.warn('导游数据格式异常:', guidesRes);
         setAvailableGuides([]);
@@ -95,6 +144,17 @@ const GuideVehicleAssignModal = ({
       
       if (vehiclesRes && vehiclesRes.code === 1) {
         setAvailableVehicles(vehiclesRes.data || []);
+        
+        // 如果是修改模式，预选当前车辆
+        if (isEditMode && currentVehicleId) {
+          const currentVehicle = (vehiclesRes.data || []).find(vehicle => 
+            vehicle.vehicleId === currentVehicleId || vehicle.id === currentVehicleId
+          );
+          if (currentVehicle) {
+            setSelectedVehicle(currentVehicle);
+            console.log('预选当前车辆:', currentVehicle);
+          }
+        }
       } else {
         console.warn('车辆数据格式异常:', vehiclesRes);
         setAvailableVehicles([]);
@@ -117,8 +177,8 @@ const GuideVehicleAssignModal = ({
       
       const assignmentData = {
         assignmentDate: values.assignmentDate.format('YYYY-MM-DD'),
-        startTime: values.startTime.format('HH:mm'),
-        endTime: values.endTime.format('HH:mm'),
+        startTime: values.startTime.format('HH:mm:ss'),
+        endTime: values.endTime.format('HH:mm:ss'),
         location: values.location,
         totalPeople: values.totalPeople,
         tourScheduleOrderIds: selectedOrders.map(order => order.id),
@@ -144,31 +204,86 @@ const GuideVehicleAssignModal = ({
   };
 
   const handleManualAssign = async () => {
+    if (!selectedGuide || !selectedVehicle) {
+      message.warning('请选择导游和车辆');
+      return;
+    }
+
+    setLoading(true);
     try {
       const values = await form.validateFields();
       
-      if (!selectedGuide || !selectedVehicle) {
-        message.warning('请选择导游和车辆');
-        return;
-      }
+      // 从选中订单中汇总信息
+      const totalAdultCount = selectedOrders.reduce((sum, order) => 
+        sum + (parseInt(order.adult_count) || 0), 0);
+      const totalChildCount = selectedOrders.reduce((sum, order) => 
+        sum + (parseInt(order.child_count) || 0), 0);
       
-      setLoading(true);
+      // 获取第一个订单的联系信息作为主要联系方式
+      const firstOrder = selectedOrders[0] || {};
       
+      // 提取接送地点信息
+      const pickupLocations = selectedOrders
+        .map(order => order.pickup_location)
+        .filter(loc => loc && loc.trim())
+        .join('; ');
+      
+      const dropoffLocations = selectedOrders
+        .map(order => order.dropoff_location)
+        .filter(loc => loc && loc.trim())
+        .join('; ');
+
       const assignmentData = {
         assignmentDate: values.assignmentDate.format('YYYY-MM-DD'),
-        startTime: values.startTime.format('HH:mm'),
-        endTime: values.endTime.format('HH:mm'),
+        startTime: values.startTime.format('HH:mm:ss'),
+        endTime: values.endTime.format('HH:mm:ss'),
         location: values.location,
+        destination: values.location, // 字段映射：location -> destination
         totalPeople: values.totalPeople,
+        adultCount: totalAdultCount,
+        childCount: totalChildCount,
+        contactPerson: firstOrder.contact_name || firstOrder.customer_name || '待确认',
+        contactPhone: firstOrder.contact_phone || firstOrder.customer_phone || '待确认',
+        pickupMethod: 'hotel_pickup', // 默认酒店接送
+        pickupLocation: pickupLocations || values.location || '待确认',
+        dropoffLocation: dropoffLocations || values.location || '待确认',
         guideId: selectedGuide.guideId,
         vehicleId: selectedVehicle.vehicleId,
         tourScheduleOrderIds: selectedOrders.map(order => order.id),
         priority: 1,
         assignmentStatus: 'confirmed',
-        remarks: values.remarks
+        remarks: values.remarks,
+        // 添加其他可选字段
+        specialRequirements: selectedOrders
+          .map(order => order.special_requirements)
+          .filter(req => req && req.trim())
+          .join('; ') || null,
+        dietaryRestrictions: selectedOrders
+          .map(order => order.dietary_restrictions)
+          .filter(diet => diet && diet.trim())
+          .join('; ') || null,
+        emergencyContact: firstOrder.emergency_contact || null,
+        languagePreference: 'chinese' // 默认中文
       };
       
-      const result = await manualAssignGuideVehicle(assignmentData);
+      let result;
+      
+      if (isEditMode && assignmentId) {
+        // 修改模式：调用更新API
+        console.log('更新分配，ID:', assignmentId, '数据:', assignmentData);
+        result = await updateGuideVehicleAssignment(assignmentId, assignmentData);
+        
+        if (result.code === 1) {
+          message.success('修改分配成功！');
+          onSuccess && onSuccess(result.data);
+          onCancel();
+        } else {
+          message.error(result.msg || '修改分配失败');
+        }
+      } else {
+        // 新建模式：调用创建API
+        console.log('创建新分配，数据:', assignmentData);
+        result = await manualAssignGuideVehicle(assignmentData);
       
       if (result.code === 1) {
         message.success('手动分配成功！');
@@ -176,10 +291,12 @@ const GuideVehicleAssignModal = ({
         onCancel();
       } else {
         message.error(result.msg || '手动分配失败');
+        }
       }
     } catch (error) {
-      message.error('手动分配失败');
-      console.error('Manual assign error:', error);
+      const errorMsg = isEditMode ? '修改分配失败' : '手动分配失败';
+      message.error(errorMsg);
+      console.error('Manual assign/update error:', error);
     } finally {
       setLoading(false);
     }
@@ -306,12 +423,13 @@ const GuideVehicleAssignModal = ({
 
   return (
     <Modal
-      title="分配导游和车辆"
+      title={isEditMode ? "修改导游和车辆分配" : "分配导游和车辆"}
       open={visible}
       onCancel={onCancel}
       width={1200}
       footer={null}
       destroyOnClose
+      className="guide-vehicle-assign-modal"
     >
       <Form form={form} layout="vertical">
         <Row gutter={16}>
@@ -373,6 +491,46 @@ const GuideVehicleAssignModal = ({
         <Form.Item label="备注" name="remarks">
           <Input.TextArea rows={2} placeholder="请输入备注信息" />
         </Form.Item>
+        
+        {/* 如果是修改模式，显示当前分配信息 */}
+        {isEditMode && (
+          <Card 
+            size="small" 
+            className="current-assignment-card"
+            style={{ 
+              marginBottom: 16, 
+              backgroundColor: '#d4edda', 
+              border: '1px solid #c3e6cb',
+              borderRadius: '6px',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            }}
+          >
+            <div style={{ 
+              padding: '4px 0',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: '#155724',
+              marginBottom: '8px',
+              textAlign: 'center'
+            }}>
+              📋 当前分配信息
+            </div>
+            <Row gutter={16}>
+              <Col span={12}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                  <UserOutlined style={{ marginRight: 8, color: '#28a745', fontSize: '16px' }} />
+                  <span><strong>当前导游：</strong>{selectedOrders[0]?.currentGuideName || '未知'}</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                  <CarOutlined style={{ marginRight: 8, color: '#28a745', fontSize: '16px' }} />
+                  <span><strong>当前车辆：</strong>{selectedOrders[0]?.currentVehicleInfo || '未知'}</span>
+                </div>
+              </Col>
+            </Row>
+          </Card>
+        )}
       </Form>
 
       <Divider />
@@ -381,33 +539,88 @@ const GuideVehicleAssignModal = ({
         activeKey={assignmentMode} 
         onChange={setAssignmentMode}
         items={[
-          {
+          // 修改模式下隐藏自动分配选项
+          ...(!isEditMode ? [{
             key: 'auto',
             label: '自动分配',
             children: (
-              <Card>
-                <p>系统将根据以下条件自动为您分配最合适的导游和车辆：</p>
-                <ul>
-                  <li>导游语言能力匹配</li>
-                  <li>车辆容量满足需求</li>
-                  <li>时间无冲突</li>
-                  <li>地理位置就近原则</li>
+              <Card style={{ borderRadius: '6px' }}>
+                <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                  <div style={{ 
+                    fontSize: '16px', 
+                    fontWeight: 'bold', 
+                    color: '#007bff',
+                    marginBottom: '8px'
+                  }}>
+                    🤖 智能自动分配
+                  </div>
+                  <p style={{ color: '#6c757d', fontSize: '14px' }}>
+                    系统将根据以下条件自动为您分配最合适的导游和车辆：
+                  </p>
+                </div>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <ul style={{ 
+                      listStyle: 'none', 
+                      padding: 0, 
+                      margin: 0,
+                      fontSize: '14px',
+                      color: '#6c757d'
+                    }}>
+                      <li style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
+                        <span style={{ color: '#28a745', marginRight: '8px' }}>✓</span>
+                        导游语言能力匹配
+                      </li>
+                      <li style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
+                        <span style={{ color: '#28a745', marginRight: '8px' }}>✓</span>
+                        车辆容量满足需求
+                      </li>
+                    </ul>
+                  </Col>
+                  <Col span={12}>
+                    <ul style={{ 
+                      listStyle: 'none', 
+                      padding: 0, 
+                      margin: 0,
+                      fontSize: '14px',
+                      color: '#6c757d'
+                    }}>
+                      <li style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
+                        <span style={{ color: '#28a745', marginRight: '8px' }}>✓</span>
+                        时间无冲突
+                      </li>
+                      <li style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
+                        <span style={{ color: '#28a745', marginRight: '8px' }}>✓</span>
+                        地理位置就近原则
+                      </li>
                 </ul>
+                  </Col>
+                </Row>
+                <div style={{ textAlign: 'center', marginTop: '24px' }}>
                 <Button 
                   type="primary" 
                   size="large" 
                   loading={loading}
                   onClick={handleAutoAssign}
-                  style={{ marginTop: 16 }}
-                >
-                  自动分配
+                    className="action-button"
+                    style={{ 
+                      height: '44px',
+                      padding: '0 32px',
+                      borderRadius: '6px',
+                      fontSize: '16px',
+                      fontWeight: 'bold'
+                    }}
+                    icon={<UserOutlined />}
+                  >
+                    开始自动分配
                 </Button>
+                </div>
               </Card>
             )
-          },
+          }] : []),
           {
             key: 'manual',
-            label: '手动分配',
+            label: isEditMode ? '修改分配' : '手动分配',
             children: (
               <div>
                 <Row gutter={16}>
@@ -456,8 +669,17 @@ const GuideVehicleAssignModal = ({
                     loading={loading}
                     onClick={handleManualAssign}
                     disabled={!selectedGuide || !selectedVehicle}
+                    className="action-button"
+                    style={{ 
+                      height: '44px',
+                      padding: '0 32px',
+                      borderRadius: '6px',
+                      fontSize: '16px',
+                      fontWeight: 'bold'
+                    }}
+                    icon={isEditMode ? <CarOutlined /> : <UserOutlined />}
                   >
-                    确认分配
+                    {isEditMode ? '确认修改' : '确认分配'}
                   </Button>
                 </div>
               </div>
@@ -468,16 +690,29 @@ const GuideVehicleAssignModal = ({
 
       <Divider />
       
-      <Card title="选中的订单" size="small">
+      <Card title="选中的订单" size="small" style={{ borderRadius: '6px' }}>
         <div style={{ maxHeight: 150, overflowY: 'auto' }}>
           {selectedOrders && selectedOrders.length > 0 ? (
             selectedOrders.map(order => (
-              <Tag key={order.id} style={{ margin: 4 }}>
+              <Tag 
+                key={order.id} 
+                style={{ 
+                  margin: 4,
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  backgroundColor: '#007bff',
+                  color: 'white',
+                  border: '1px solid #007bff',
+                  fontSize: '12px'
+                }}
+              >
                 {order.order_number || `ORDER-${order.id}`} - {order.title || '未知行程'} ({(parseInt(order.adult_count) || 0) + (parseInt(order.child_count) || 0)}人)
               </Tag>
             ))
           ) : (
-            <div style={{ textAlign: 'center', color: '#999' }}>暂无选中的订单</div>
+            <div style={{ textAlign: 'center', color: '#6c757d', padding: '20px' }}>
+              📝 暂无选中的订单
+            </div>
           )}
         </div>
       </Card>

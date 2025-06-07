@@ -81,10 +81,34 @@ export const updateGuideAssignment = (id, data) => {
   });
 };
 
-// 取消分配
-export const cancelGuideAssignment = (id, reason) => {
+// 检查指定日期和地点的分配状态
+export const checkAssignmentStatus = (date, location) => {
   return request({
-    url: `/admin/guide-assignment/${id}`,
+    url: '/admin/guide-assignment/status',
+    method: 'get',
+    params: {
+      date,
+      location
+    }
+  });
+};
+
+// 根据日期和地点获取分配详情（包含分配ID）
+export const getAssignmentByDateAndLocation = (date, location) => {
+  return request({
+    url: '/admin/guide-assignment/by-date-location',
+    method: 'get',
+    params: {
+      date,
+      location
+    }
+  });
+};
+
+// 取消分配
+export const cancelAssignment = (assignmentId, reason) => {
+  return request({
+    url: `/admin/guide-assignment/${assignmentId}`,
     method: 'delete',
     params: { reason }
   });
@@ -95,6 +119,15 @@ export const batchAssignGuideVehicle = (data) => {
   return request({
     url: '/admin/guide-assignment/batch-assign',
     method: 'post',
+    data
+  });
+};
+
+// 更新分配
+export const updateGuideVehicleAssignment = (assignmentId, data) => {
+  return request({
+    url: `/admin/guide-assignment/${assignmentId}`,
+    method: 'put',
     data
   });
 }; 

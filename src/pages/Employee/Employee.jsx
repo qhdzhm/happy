@@ -35,7 +35,7 @@ import {
   InfoCircleOutlined,
   CalendarOutlined
 } from "@ant-design/icons";
-import { enableOrDisableEmp, getEmpList, getEmpById, getEmployeesByPage, deleteEmployee } from "@/apis/Employee";
+import { enableOrDisableEmp, getEmpById, getEmployeesByPage, deleteEmployee } from "@/apis/Employee";
 import { getGuideByEmployeeId } from "@/api/guide";
 import { useNavigate } from "react-router-dom";
 import GuideAvailabilityModal from "@/components/AvailabilityManagement/GuideAvailabilityModal";
@@ -51,16 +51,10 @@ const Employee = () => {
     { label: "管理员", value: 2, icon: <TeamOutlined /> },
   ];
 
-  // 员工列表数据
-  const [empList, setEmpList] = useState({
-    records: [],
-    total: 0,
-  });
-
-  // 查询参数
+  // 查询参数 - 只使用后端支持的字段
   const [params, setParams] = useState({
-    name: "",
-    role: null,
+    name: "", // 后端支持：姓名模糊查询
+    role: null, // 后端支持：角色精确查询
     page: 1,
     pageSize: 10,
   });
@@ -69,22 +63,12 @@ const Employee = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // 新增的员工列表数据
+  // 员工列表数据
   const [employees, setEmployees] = useState([]);
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 10,
     total: 0,
-  });
-
-  // 新增的查询参数
-  const [queryParams, setQueryParams] = useState({
-    username: "",
-    name: "",
-    phone: "",
-    roleId: null,
-    page: 1,
-    pageSize: 10,
   });
 
   // 导游可用性管理相关状态
@@ -139,8 +123,9 @@ const Employee = () => {
   const fetchEmpList = async () => {
     setLoading(true);
     try {
+      console.log('🔍 发送API请求，参数:', params);
       const res = await getEmployeesByPage(params);
-      console.log('获取员工列表结果:', res);
+      console.log('✅ 获取员工列表结果:', res);
       
       if (res.code === 1) {
         const records = res.data?.records || [];
@@ -178,16 +163,24 @@ const Employee = () => {
     }
   };
 
-  const handleSearch = (values) => {
+  // 修复搜索功能
+  const handleSearch = () => {
+    console.log('🔍 执行搜索，当前参数:', params);
     const newParams = {
       ...params,
-      ...values,
-      page: 1,
+      page: 1, // 搜索时重置到第一页
     };
     setParams(newParams);
+    
+    // 强制刷新数据
+    setTimeout(() => {
+      fetchEmpList();
+    }, 100);
   };
 
+  // 修复重置功能
   const handleReset = () => {
+    console.log('🔄 执行重置');
     const resetParams = {
       name: "",
       role: null,
@@ -195,22 +188,20 @@ const Employee = () => {
       pageSize: 10,
     };
     setParams(resetParams);
-    setQueryParams({
-      username: "",
-      name: "",
-      phone: "",
-      roleId: null,
-      page: 1,
-      pageSize: 10,
-    });
+    
+    // 强制刷新数据
+    setTimeout(() => {
+      fetchEmpList();
+    }, 100);
   };
 
   const handleTableChange = (pagination) => {
-    setParams({
+    const newParams = {
       ...params,
       page: pagination.current,
       pageSize: pagination.pageSize,
-    });
+    };
+    setParams(newParams);
   };
 
   const handleAddEdit = (id) => {
@@ -338,38 +329,20 @@ const Employee = () => {
         {/* 搜索区域 */}
         <div className="search-container">
           <Row gutter={[16, 16]} align="middle">
-            <Col xs={24} sm={12} md={6} lg={5}>
-              <Input
-                placeholder="员工姓名/用户名"
-                value={queryParams.username}
-                onChange={(e) => setQueryParams({ ...queryParams, username: e.target.value })}
-                prefix={<SearchOutlined />}
-                allowClear
-              />
-            </Col>
-            <Col xs={24} sm={12} md={6} lg={5}>
+            <Col xs={24} sm={12} md={8} lg={6}>
               <Input
                 placeholder="员工姓名"
-                value={queryParams.name}
-                onChange={(e) => setQueryParams({ ...queryParams, name: e.target.value })}
+                value={params.name}
+                onChange={(e) => setParams({ ...params, name: e.target.value })}
                 prefix={<SearchOutlined />}
                 allowClear
               />
             </Col>
-            <Col xs={24} sm={12} md={6} lg={5}>
-              <Input
-                placeholder="手机号"
-                value={queryParams.phone}
-                onChange={(e) => setQueryParams({ ...queryParams, phone: e.target.value })}
-                prefix={<SearchOutlined />}
-                allowClear
-              />
-            </Col>
-            <Col xs={24} sm={12} md={6} lg={5}>
+            <Col xs={24} sm={12} md={8} lg={6}>
               <Select
                 placeholder="选择角色"
-                value={queryParams.roleId}
-                onChange={(value) => setQueryParams({ ...queryParams, roleId: value })}
+                value={params.role}
+                onChange={(value) => setParams({ ...params, role: value })}
                 style={{ width: "100%" }}
                 allowClear
               >
@@ -380,10 +353,14 @@ const Employee = () => {
                 ))}
               </Select>
             </Col>
-            <Col xs={24} sm={24} md={24} lg={4}>
+            <Col xs={24} sm={24} md={8} lg={6}>
               <Space>
-                <Button type="primary" onClick={() => handleSearch(queryParams)}>搜索</Button>
-                <Button onClick={handleReset}>重置</Button>
+                <Button type="primary" onClick={handleSearch} icon={<SearchOutlined />}>
+                  搜索
+                </Button>
+                <Button onClick={handleReset} icon={<ReloadOutlined />}>
+                  重置
+                </Button>
               </Space>
             </Col>
           </Row>

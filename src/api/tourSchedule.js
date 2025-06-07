@@ -52,17 +52,7 @@ export function saveBatchSchedules(data) {
   });
 }
 
-/**
- * 初始化订单的行程排序
- * @param {number} bookingId 订单ID
- * @returns {Promise} 初始化结果
- */
-export function initOrderSchedules(bookingId) {
-  return request({
-    url: `/admin/tour/schedule/init/${bookingId}`,
-    method: 'post'
-  });
-}
+
 
 /**
  * 为行程分配导游和车辆
@@ -75,4 +65,19 @@ export function assignGuideAndVehicle(data) {
     method: 'post',
     data
   });
-} 
+}
+
+/**
+ * 根据日期和地点获取导游车辆分配信息
+ * @param {string} date 日期
+ * @param {string} location 地点
+ * @returns {Promise} 分配信息
+ */
+export function getAssignmentByDateAndLocation(date, location) {
+  return request({
+    url: '/admin/tour/schedule/assignment',
+    method: 'get',
+    params: { date, location }
+  });
+}
+
