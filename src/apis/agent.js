@@ -68,4 +68,12 @@ export const resetAgentPassword = (id, password) => {
     method: 'put',
     data: { id, password }
   })
+}
+
+// 更新代理商折扣等级
+export const updateAgentDiscountLevel = (agentId, discountLevelId) => {
+  return request({
+    url: `/admin/agent/${agentId}/discount-level/${discountLevelId}`,
+    method: 'put'
+  })
 } 

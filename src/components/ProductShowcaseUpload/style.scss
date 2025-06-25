@@ -1,0 +1,141 @@
+.product-showcase-upload {
+  margin: 20px 0;
+  padding: 20px;
+  background: #fafafa;
+  border-radius: 8px;
+  border: 1px solid #e8e8e8;
+
+  .upload-header {
+    margin-bottom: 20px;
+
+    .upload-description {
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: #f0f8ff;
+      border-left: 3px solid #1890ff;
+      border-radius: 4px;
+    }
+  }
+
+  .upload-content {
+    .image-preview {
+      display: flex;
+      justify-content: center;
+
+      .showcase-image-card {
+        max-width: 400px;
+        width: 100%;
+
+        .ant-card-cover {
+          border-radius: 8px 8px 0 0;
+          overflow: hidden;
+        }
+
+        .ant-card-actions {
+          background: #fff;
+          border-top: 1px solid #e8e8e8;
+
+          .ant-card-actions > li {
+            margin: 12px 0;
+          }
+        }
+      }
+    }
+
+    .upload-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+
+      .showcase-uploader {
+        .ant-upload.ant-upload-select-picture-card {
+          width: 200px;
+          height: 150px;
+          background: #fff;
+          border: 2px dashed #d9d9d9;
+          border-radius: 8px;
+          transition: all 0.3s ease;
+
+          &:hover {
+            border-color: #1890ff;
+            background: #fafafa;
+          }
+
+          .upload-button {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            color: #666;
+
+            &:hover {
+              color: #1890ff;
+            }
+          }
+        }
+      }
+
+      .upload-tips {
+        margin-top: 16px;
+        max-width: 300px;
+      }
+    }
+  }
+}
+
+// 响应式设计
+@media (max-width: 768px) {
+  .product-showcase-upload {
+    padding: 16px;
+
+    .upload-content {
+      .image-preview {
+        .showcase-image-card {
+          max-width: 100%;
+        }
+      }
+
+      .upload-placeholder {
+        .showcase-uploader {
+          .ant-upload.ant-upload-select-picture-card {
+            width: 160px;
+            height: 120px;
+          }
+        }
+      }
+    }
+  }
+}
+
+// 深色主题支持
+.ant-theme-dark {
+  .product-showcase-upload {
+    background: #1f1f1f;
+    border-color: #434343;
+
+    .upload-header {
+      .upload-description {
+        background: rgba(24, 144, 255, 0.1);
+        border-left-color: #1890ff;
+      }
+    }
+
+    .upload-content {
+      .upload-placeholder {
+        .showcase-uploader {
+          .ant-upload.ant-upload-select-picture-card {
+            background: #262626;
+            border-color: #434343;
+
+            &:hover {
+              border-color: #1890ff;
+              background: #303030;
+            }
+          }
+        }
+      }
+    }
+  }
+} 

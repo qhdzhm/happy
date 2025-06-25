@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Modal, message, Switch, Tag, InputNumber, Form, Input, Row, Col, Card, Select } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined, PercentageOutlined, KeyOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { getAgentList, deleteAgent, enableOrDisableAgent, updateAgentDiscountRate, resetAgentPassword } from '@/apis/agent';
+import { getAgentList, deleteAgent, enableOrDisableAgent, updateAgentDiscountRate, resetAgentPassword, updateAgentDiscountLevel } from '@/apis/agent';
+import { getAllDiscountLevels } from '@/apis/discount';
 import './Agents.scss';
 
 const { confirm } = Modal;
@@ -19,6 +20,8 @@ const Agents = () => {
   const [resetPasswordModalVisible, setResetPasswordModalVisible] = useState(false);
   const [currentAgent, setCurrentAgent] = useState(null);
   const [discountRate, setDiscountRate] = useState(0);
+  const [selectedDiscountLevelId, setSelectedDiscountLevelId] = useState(null);
+  const [discountLevels, setDiscountLevels] = useState([]);
   const [newPassword, setNewPassword] = useState('');
   const [searchForm] = Form.useForm();
   const [searchParams, setSearchParams] = useState({});
@@ -26,7 +29,19 @@ const Agents = () => {
 
   useEffect(() => {
     fetchAgents();
+    fetchDiscountLevels();
   }, [pagination.current, pagination.pageSize, searchParams]);
+
+  const fetchDiscountLevels = async () => {
+    try {
+      const res = await getAllDiscountLevels();
+      if (res.code === 1) {
+        setDiscountLevels(res.data || []);
+      }
+    } catch (error) {
+      console.error('获取折扣等级列表失败:', error);
+    }
+  };
 
   const fetchAgents = async () => {
     setLoading(true);
@@ -105,27 +120,41 @@ const Agents = () => {
   const showDiscountModal = (record) => {
     setCurrentAgent(record);
     setDiscountRate(record.discountRate * 100);
+    setSelectedDiscountLevelId(record.discountLevelId);
     setDiscountModalVisible(true);
   };
 
   const handleDiscountOk = async () => {
     try {
-      const res = await updateAgentDiscountRate(currentAgent.id, discountRate / 100);
-      if (res.code === 1) {
-        message.success('更新折扣率成功');
-        setDiscountModalVisible(false);
-        fetchAgents();
+      // 如果选择了折扣等级，则更新折扣等级；否则更新传统折扣率
+      if (selectedDiscountLevelId) {
+        const res = await updateAgentDiscountLevel(currentAgent.id, selectedDiscountLevelId);
+        if (res.code === 1) {
+          message.success('更新折扣等级成功');
+          setDiscountModalVisible(false);
+          fetchAgents();
+        } else {
+          message.error(res.msg || '更新折扣等级失败');
+        }
       } else {
-        message.error(res.msg || '更新折扣率失败');
+        const res = await updateAgentDiscountRate(currentAgent.id, discountRate / 100);
+        if (res.code === 1) {
+          message.success('更新折扣率成功');
+          setDiscountModalVisible(false);
+          fetchAgents();
+        } else {
+          message.error(res.msg || '更新折扣率失败');
+        }
       }
     } catch (error) {
-      console.error('更新折扣率失败:', error);
-      message.error('更新折扣率失败');
+      console.error('更新折扣配置失败:', error);
+      message.error('更新折扣配置失败');
     }
   };
 
   const handleDiscountCancel = () => {
     setDiscountModalVisible(false);
+    setSelectedDiscountLevelId(null);
   };
 
   // 重置密码相关函数
@@ -209,10 +238,30 @@ const Agents = () => {
       key: 'email',
     },
     {
-      title: '折扣率',
-      dataIndex: 'discountRate',
-      key: 'discountRate',
-      render: (discountRate) => `${(discountRate * 100).toFixed(0)}%`,
+      title: '折扣配置',
+      key: 'discountConfig',
+      render: (_, record) => {
+        if (record.discountLevelId) {
+          const level = discountLevels.find(l => l.id === record.discountLevelId);
+          return (
+            <div>
+              <Tag color="blue">{level ? level.levelCode : '未知等级'}</Tag>
+              <div style={{ fontSize: '12px', color: '#666' }}>
+                {level ? level.levelName : ''}
+              </div>
+            </div>
+          );
+        } else {
+          return (
+            <div>
+              <Tag color="orange">{`${(record.discountRate * 100).toFixed(0)}%`}</Tag>
+              <div style={{ fontSize: '12px', color: '#666' }}>
+                统一折扣
+              </div>
+            </div>
+          );
+        }
+      },
     },
     {
       title: '状态',
@@ -328,27 +377,96 @@ const Agents = () => {
       />
 
       <Modal
-        title="设置折扣率"
+        title="设置折扣配置"
         open={discountModalVisible}
         onOk={handleDiscountOk}
         onCancel={handleDiscountCancel}
+        width={600}
       >
         <div style={{ marginBottom: '16px' }}>
-          当前代理商: {currentAgent?.companyName}
+          当前代理商: <strong>{currentAgent?.companyName}</strong>
         </div>
-        <div>
-          <span style={{ marginRight: '8px' }}>折扣率:</span>
-          <InputNumber
-            min={0}
-            max={100}
-            value={discountRate}
-            onChange={setDiscountRate}
-            formatter={(value) => `${value}%`}
-            parser={(value) => value.replace('%', '')}
-          />
-          <div style={{ marginTop: '8px', color: 'rgba(0, 0, 0, 0.45)' }}>
-            请输入0-100之间的数值，表示折扣百分比。例如：90表示9折。
+        
+        <div style={{ marginBottom: '20px' }}>
+          <h4>选择折扣模式：</h4>
+          <div style={{ marginBottom: '16px' }}>
+            <label>
+              <input
+                type="radio"
+                name="discountMode"
+                checked={!selectedDiscountLevelId}
+                onChange={() => setSelectedDiscountLevelId(null)}
+                style={{ marginRight: '8px' }}
+              />
+              使用统一折扣率
+            </label>
           </div>
+          <div>
+            <label>
+              <input
+                type="radio"
+                name="discountMode"
+                checked={!!selectedDiscountLevelId}
+                onChange={() => {
+                  if (discountLevels.length > 0) {
+                    setSelectedDiscountLevelId(discountLevels[0].id);
+                  }
+                }}
+                style={{ marginRight: '8px' }}
+              />
+              使用折扣等级（推荐）
+            </label>
+          </div>
+        </div>
+
+        {!selectedDiscountLevelId ? (
+          <div style={{ marginBottom: '16px', padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+            <div style={{ marginBottom: '8px' }}>
+              <span style={{ marginRight: '8px' }}>统一折扣率:</span>
+              <InputNumber
+                min={0}
+                max={100}
+                value={discountRate}
+                onChange={setDiscountRate}
+                formatter={(value) => `${value}%`}
+                parser={(value) => value.replace('%', '')}
+              />
+            </div>
+            <div style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: '12px' }}>
+              请输入0-100之间的数值，表示折扣百分比。例如：90表示9折。
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginBottom: '16px', padding: '16px', backgroundColor: '#f0f8ff', borderRadius: '4px' }}>
+            <div style={{ marginBottom: '8px' }}>
+              <span style={{ marginRight: '8px' }}>折扣等级:</span>
+              <Select
+                value={selectedDiscountLevelId}
+                onChange={setSelectedDiscountLevelId}
+                style={{ width: '200px' }}
+                placeholder="请选择折扣等级"
+              >
+                {discountLevels.map(level => (
+                  <Select.Option key={level.id} value={level.id}>
+                    <Tag color="blue" style={{ marginRight: '8px' }}>{level.levelCode}</Tag>
+                    {level.levelName}
+                  </Select.Option>
+                ))}
+              </Select>
+            </div>
+            <div style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: '12px' }}>
+              折扣等级支持不同产品的个性化折扣配置，比统一折扣更灵活。
+            </div>
+          </div>
+        )}
+
+        <div style={{ backgroundColor: '#fff7e6', padding: '12px', borderRadius: '4px', border: '1px solid #ffd591' }}>
+          <strong>说明：</strong>
+          <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
+            <li>统一折扣率：对所有产品使用相同的折扣比例</li>
+            <li>折扣等级：可以为不同产品设置不同的折扣，更加灵活</li>
+            <li>推荐使用折扣等级，可在"折扣管理"页面配置具体的产品折扣</li>
+          </ul>
         </div>
       </Modal>
 

@@ -478,7 +478,7 @@ const OrderList = () => {
       title: '总价',
       dataIndex: 'totalPrice',
       key: 'totalPrice',
-      render: (text) => `¥${text || 0}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+              render: (text) => `$${text || 0}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
     },
     {
       title: '订单状态',

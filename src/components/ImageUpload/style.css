@@ -1,7 +1,33 @@
 .image-upload-container {
   margin-bottom: 24px;
 }
-.image-upload-container .image-list {
+.image-upload-container .banner-image-section {
+  margin-bottom: 24px;
+}
+.image-upload-container .banner-image-section .banner-upload-area .banner-preview {
+  position: relative;
+}
+.image-upload-container .banner-image-section .banner-upload-area .banner-preview .banner-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+.image-upload-container .banner-image-section .banner-upload-area .banner-placeholder {
+  text-align: center;
+  padding: 40px 20px;
+  background-color: #fafafa;
+  border: 2px dashed #d9d9d9;
+  border-radius: 8px;
+}
+.image-upload-container .banner-image-section .banner-upload-area .banner-placeholder:hover {
+  border-color: #40a9ff;
+}
+.image-upload-container .banner-image-section .banner-upload-area .banner-placeholder p {
+  margin-top: 8px;
+  color: #666;
+  font-size: 13px;
+}
+.image-upload-container .gallery-section .image-list {
   margin-top: 16px;
 }
 .image-upload-container .primary-image {

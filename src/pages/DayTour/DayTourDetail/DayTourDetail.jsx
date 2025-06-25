@@ -4,6 +4,7 @@ import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined, UploadOutlined, Exclam
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getDayTourById, updateDayTour, createDayTour, uploadDayTourImage, getDayTourHighlights, addDayTourHighlight, deleteDayTourHighlight, getDayTourInclusions, getDayTourExclusions, getDayTourItineraries, getDayTourFaqs, getDayTourTips, getDayTourImages, addDayTourInclusion, deleteDayTourInclusion, addDayTourExclusion, deleteDayTourExclusion, addDayTourItinerary, deleteDayTourItinerary, addDayTourFaq, deleteDayTourFaq, addDayTourTip, deleteDayTourTip, handleImageUploadToGallery, handleSetPrimaryImage, handleDeleteImage, handleUpdateImageDescription, handleSaveImageDescription, getDayTourThemes, getDayTourSuitableFor, getDayTourRelatedThemes, getDayTourRelatedSuitableFor, updateDayTourRelatedThemes, updateDayTourRelatedSuitableFor, getDayTourList } from '@/apis/daytour';
 import ImageUpload from '@/components/ImageUpload';
+import ProductShowcaseUpload from '@/components/ProductShowcaseUpload';
 import './DayTourDetail.scss';
 
 const { Option } = Select;
@@ -16,6 +17,9 @@ const DayTourDetail = () => {
   const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
+  const [bannerImageUrl, setBannerImageUrl] = useState('');
+  const [productShowcaseImage, setProductShowcaseImage] = useState('');
+  const [imageFileList, setImageFileList] = useState([]);
   const [isEdit, setIsEdit] = useState(false);
   const [tourId, setTourId] = useState(null);
   const [highlights, setHighlights] = useState([]);
@@ -141,6 +145,8 @@ const DayTourDetail = () => {
           cancellationPolicy: tourData.cancellationPolicy,
         });
         setImageUrl(tourData.imageUrl);
+        setBannerImageUrl(tourData.bannerImage);
+        setProductShowcaseImage(tourData.productShowcaseImage || '');
         
         fetchRelatedThemes(id);
         fetchRelatedSuitableFor(id);
@@ -301,16 +307,31 @@ const DayTourDetail = () => {
 
     // 构建请求数据
     const tourData = {
-      ...values,
-      imageUrl: imageUrl || '',
-      themeIds: selectedThemes,
-      suitableIds: selectedSuitable
+      name: values.name,
+      location: values.location,
+      description: values.description,
+      price: parseFloat(values.price),
+      duration: values.duration, // 保持原始格式，不添加"天"
+      category: values.category,
+      imageUrl: values.imageUrl,
+      bannerImage: bannerImageUrl || null,
+      themeIds: selectedThemes.length > 0 ? selectedThemes : null,
+      suitableIds: selectedSuitable.length > 0 ? selectedSuitable : null,
+      // 转换对象数组为字符串数组
+      highlights: highlights.map(item => typeof item === 'string' ? item : item.description),
+      inclusions: inclusions.map(item => typeof item === 'string' ? item : item.description),
+      exclusions: exclusions.map(item => typeof item === 'string' ? item : item.description),
+      // 保持原始格式，因为后端期望的是对象数组
+      itineraries: itineraries,
+      faqs: faqs,
+      tips: tips.map(item => typeof item === 'string' ? item : item.description)
     };
 
     try {
       let res;
       if (isEdit) {
         tourData.id = tourId;
+        tourData.dayTourId = tourId; // 确保dayTourId也被设置
         res = await updateDayTour(tourData);
       } else {
         res = await createDayTour(tourData);
@@ -501,6 +522,52 @@ const DayTourDetail = () => {
         message.error('图片上传失败，请检查网络连接');
       }
     }
+  };
+
+  const handleBannerImageChange = async (imageUrl) => {
+    setBannerImageUrl(imageUrl);
+    
+    // 如果是编辑模式且有tourId，立即保存Banner图片到数据库
+    if (isEdit && tourId) {
+      try {
+        const tourData = {
+          id: tourId,
+          dayTourId: tourId,
+          bannerImage: imageUrl
+        };
+        
+        const res = await updateDayTour(tourData);
+        if (res.code === 1) {
+          message.success('Banner图片保存成功');
+        } else {
+          message.error('Banner图片保存失败: ' + (res.msg || ''));
+        }
+      } catch (error) {
+        console.error('保存Banner图片失败:', error);
+        message.error('保存Banner图片失败');
+      }
+    }
+  };
+
+  // 处理产品展示图片变化
+  const handleProductShowcaseImageChange = (imageUrl) => {
+    setProductShowcaseImage(imageUrl);
+    message.success(imageUrl ? '产品展示图片已更新' : '产品展示图片已删除');
+  };
+
+  // 上传前验证
+  const beforeUpload = (file) => {
+    const isJpgOrPng = file.type === 'image/jpeg' || file.type === 'image/png';
+    if (!isJpgOrPng) {
+      message.error('只能上传JPG/PNG图片!');
+      return false;
+    }
+    const isLt2M = file.size / 1024 / 1024 < 2;
+    if (!isLt2M) {
+      message.error('图片必须小于2MB!');
+      return false;
+    }
+    return true;
   };
 
   const handleAddHighlight = async () => {
@@ -918,102 +985,30 @@ const DayTourDetail = () => {
                     </Form.Item>
                   </Col>
                 </Row>
-                <Row gutter={16}>
+                <Row gutter={24}>
                   <Col span={12}>
-                    <Form.Item 
-                      label="图片"
-                      name="imageUrl"
-                      valuePropName="value"
-                    >
+                    <Form.Item label="封面图片" name="imageUrl">
                       <Upload
-                        name="file"
                         listType="picture-card"
-                        className="avatar-uploader"
-                        showUploadList={false}
-                        beforeUpload={(file) => {
-                          if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
-                            message.error('只能上传JPG/PNG图片!');
-                            return false;
-                          }
-                          const isLt2M = file.size / 1024 / 1024 < 2;
-                          if (!isLt2M) {
-                            message.error('图片必须小于2MB!');
-                            return false;
-                          }
-                          return true;
-                        }}
-                        customRequest={({ file, onSuccess }) => { 
-                          console.log('开始上传文件:', file.name);
-                          setTimeout(() => {
-                            onSuccess("ok");
-                          }, 0);
-                          handleImageUpload({ file: { status: 'done', originFileObj: file } });
+                        fileList={imageFileList}
+                        beforeUpload={beforeUpload}
+                        customRequest={handleImageUpload}
+                        onRemove={() => {
+                          setImageFileList([]);
+                          form.setFieldsValue({ imageUrl: '' });
                         }}
                       >
-                        {imageUrl ? (
-                          <div className="image-preview-container" style={{ width: '100%', height: '100%', position: 'relative' }}>
-                            <img 
-                              src={imageUrl} 
-                              alt="一日游封面图"
-                              style={{ 
-                                width: '100%', 
-                                height: '100%', 
-                                objectFit: 'cover',
-                                display: 'block' 
-                              }}
-                              onError={(e) => {
-                                console.error('图片加载失败:', imageUrl);
-                                e.target.onerror = null;
-                                e.target.src = 'https://via.placeholder.com/150?text=加载失败';
-                              }}
-                            />
-                            <div 
-                              className="image-preview-overlay"
-                              style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                background: 'rgba(0,0,0,0.3)',
-                                display: 'flex',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                opacity: 0,
-                                transition: 'opacity 0.3s',
-                                cursor: 'pointer'
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-                              onMouseLeave={(e) => e.currentTarget.style.opacity = 0}
-                            >
-                              <PlusOutlined style={{ color: '#fff', fontSize: '20px' }} />
-                            </div>
-                          </div>
-                        ) : (
+                        {imageFileList.length === 0 && (
                           <div>
-                            <PlusOutlined />
-                            <div style={{ marginTop: 8 }}>上传</div>
+                            <UploadOutlined />
+                            <div style={{ marginTop: 8 }}>上传封面图</div>
                           </div>
                         )}
                       </Upload>
-                      <div style={{ marginTop: 8 }}>
-                        {imageUrl && (
-                          <>
-                            <a 
-                              href={imageUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              style={{ fontSize: '12px', marginRight: '10px' }}
-                            >
-                              查看原图
-                            </a>
-                            <span style={{ fontSize: '12px', color: '#52c41a' }}>
-                              {imageUrl.includes('?') ? '图片含URL参数' : '图片URL已简化'}
-                            </span>
-                          </>
-                        )}
-                      </div>
                     </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    {/* 移除Banner图片上传，现在在图片管理中 */}
                   </Col>
                 </Row>
                 <Form.Item
@@ -1325,15 +1320,30 @@ const DayTourDetail = () => {
             key: 'images',
             label: '图片管理',
             children: isEdit && tourId ? (
-              <Card variant="borderless">
-                <ImageUpload 
-                  type="day_tour" 
-                  relatedId={tourId}
-                  onChange={(images) => {
-                    console.log('图片列表已更新:', images);
-                  }}
-                />
-              </Card>
+              <div className="images-management">
+                {/* 产品展示图片 */}
+                <Card style={{ marginBottom: '20px' }}>
+                  <ProductShowcaseUpload
+                    type="day_tour"
+                    productId={tourId}
+                    initialImage={productShowcaseImage}
+                    onChange={handleProductShowcaseImageChange}
+                  />
+                </Card>
+                
+                {/* Banner图片和图片画廊 */}
+                <Card variant="borderless">
+                  <ImageUpload 
+                    type="day_tour" 
+                    relatedId={tourId}
+                    onChange={(images) => {
+                      console.log('图片列表已更新:', images);
+                    }}
+                    onBannerImageChange={handleBannerImageChange}
+                    initialBannerImage={bannerImageUrl}
+                  />
+                </Card>
+              </div>
             ) : (
               <Card>
                 <div className="empty-placeholder">

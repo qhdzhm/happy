@@ -765,28 +765,6 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
   const extractLocationName = (title) => {
     if (!title) return '';
     
-    // 简化地点名称映射
-    const simplifiedNames = {
-      '霍巴特市游': '霍巴特',
-      '霍巴特市区': '霍巴特',  
-      '霍巴特': '霍巴特',
-      '布鲁尼岛': '布鲁尼',
-      '酒杯湾': '酒杯湾',
-      '亚瑟港不含门票': '亚瑟港',
-      '亚瑟港': '亚瑟港',
-      '摇篮山': '摇篮山',
-      '朗塞斯顿': '朗塞斯顿',
-      '玛丽亚岛': '玛丽亚',
-      '菲尔德山': '菲尔德',
-      '菲欣纳国家公园': '菲欣纳',
-      '塔斯曼半岛': '塔斯曼',
-      '非常湾': '非常湾',
-      '菲欣纳': '菲欣纳',
-      '摩恩谷': '摩恩谷',
-      '卡尔德': '卡尔德',
-      '珊瑚湾': '珊瑚湾'
-    };
-    
     let locationName = title;
     
     // 先移除"第X天:"的前缀（兼容数字和中文数字）
@@ -798,8 +776,54 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
       locationName = colonSplit[1];
     }
     
-    // 去掉"一日游"等后缀
-    locationName = locationName.replace('一日游', '').trim();
+    // 去掉"一日游"等后缀，但保留重要的区分信息
+    locationName = locationName.replace(/一日游$/, '').trim();
+    
+    // 🎯 特殊处理：保留可选行程的重要区分信息
+    // 对于亚瑟港相关行程，保留关键特征词
+    if (locationName.includes('亚瑟港')) {
+      if (locationName.includes('历史文化') || locationName.includes('含门票')) {
+        return '亚瑟港(含门票)';
+      } else if (locationName.includes('不含门票')) {
+        return '亚瑟港(不含门票)';
+      } else if (locationName.includes('迅游') || locationName.includes('1.5小时')) {
+        return '亚瑟港(迅游)';
+      } else {
+        return '亚瑟港';
+      }
+    }
+    
+    // 对于酒杯湾相关行程，保留特征词
+    if (locationName.includes('酒杯湾')) {
+      if (locationName.includes('自然风光') || locationName.includes('徒步')) {
+        return '酒杯湾(徒步)';
+      } else if (locationName.includes('观景台')) {
+        return '酒杯湾(观景)';
+      } else {
+        return '酒杯湾';
+      }
+    }
+    
+    // 其他地点的简化映射
+    const simplifiedNames = {
+      '霍巴特市游': '霍巴特',
+      '霍巴特市区': '霍巴特',  
+      '霍巴特周边经典': '霍巴特',
+      '霍巴特': '霍巴特',
+      '布鲁尼岛美食生态': '布鲁尼岛',
+      '布鲁尼岛': '布鲁尼岛',
+      '摇篮山': '摇篮山',
+      '朗塞斯顿': '朗塞斯顿',
+      '玛丽亚岛': '玛丽亚岛',
+      '菲尔德山': '菲尔德山',
+      '菲欣纳国家公园': '菲欣纳',
+      '菲欣纳': '菲欣纳',
+      '塔斯曼半岛': '塔斯曼半岛',
+      '非常湾': '非常湾',
+      '摩恩谷': '摩恩谷',
+      '卡尔德': '卡尔德',
+      '珊瑚湾': '珊瑚湾'
+    };
     
     // 检查是否有简化名称
     for (const [key, value] of Object.entries(simplifiedNames)) {
@@ -808,7 +832,7 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
       }
     }
     
-    // 如果没有匹配的简化名称，返回原名称
+    // 如果没有匹配的简化名称，返回处理后的名称
     return locationName;
   };
   
@@ -816,7 +840,7 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
   const getLocationColor = (locationName) => {
     if (!locationName) return '#1890ff';
     
-    // 与主页面保持一致的颜色映射
+    // 与主页面保持一致的颜色映射，同一地点使用统一颜色
     const locationColors = {
       '霍巴特': '#13c2c2',
       '朗塞斯顿': '#722ed1',
@@ -824,7 +848,6 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
       '酒杯湾': '#ff9c6e',
       '亚瑟港': '#dc3545',
       '布鲁尼岛': '#87d068',
-      '布鲁尼': '#87d068',
       '惠灵顿山': '#f56a00',
       '塔斯马尼亚': '#1890ff',
       '菲欣纳': '#3f8600',
@@ -833,15 +856,17 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
       '跟团游': '#fa8c16',
       '待安排': '#bfbfbf',
       '塔斯曼半岛': '#ff4d4f',
-      '塔斯曼': '#ff4d4f',
       '玛丽亚岛': '#ffaa00',
-      '玛丽亚': '#ffaa00',
       '摩恩谷': '#9254de',
       '菲尔德山': '#237804',
-      '菲尔德': '#237804',
       '非常湾': '#5cdbd3',
       '卡尔德': '#096dd9'
     };
+    
+    // 优先进行精确匹配
+    if (locationColors[locationName]) {
+      return locationColors[locationName];
+    }
     
     // 查找包含关键词的地点名称
     for (const key in locationColors) {

@@ -1,103 +1,40 @@
-.drag-drop-container {
-  margin: 20px 0;
-  
-  .drag-tip {
-    margin-bottom: 20px;
-    
-    ul {
-      margin-bottom: 0;
-      padding-left: 20px;
-    }
-    
-    b {
-      color: #1890ff;
-    }
-  }
-  
-  .tour-boxes {
+.drag-drop-tours {
+  .tour-lists {
     display: flex;
     gap: 20px;
+    min-height: 400px;
     
-    @media (max-width: 1200px) {
-      flex-direction: column;
-    }
-    
-    .tour-box {
+    .tour-list {
       flex: 1;
-      min-height: 400px;
+      border: 1px solid #d9d9d9;
+      border-radius: 6px;
+      padding: 16px;
+      background: #fafafa;
       
-      &.left-box {
-        min-width: 300px;
-        max-width: 400px;
+      .list-header {
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e8e8e8;
         
-        @media (max-width: 1200px) {
-          max-width: 100%;
+        h3 {
+          margin: 0;
+          color: #262626;
         }
       }
       
-      &.right-box {
-        flex: 2;
-      }
-      
-      .tour-card {
-        height: 100%;
-        
-        .tour-list-header {
-          margin-bottom: 10px;
-        }
+      .tour-items {
+        min-height: 300px;
       }
     }
-  }
-  
-  .available-tours-list {
-    height: 500px;
-    overflow-y: auto;
-    border: 1px dashed #e8e8e8;
-    border-radius: 2px;
-    padding: 8px;
-    background: #fafafa;
     
-    &.dragging-over {
-      border-color: #1890ff;
-      background-color: #e6f7ff;
+    .available-tours {
+      background: #f6ffed;
+      border-color: #b7eb8f;
     }
-  }
-  
-  .selected-tours-list {
-    min-height: 150px;
-    border: 1px dashed #e8e8e8;
-    border-radius: 2px;
-    padding: 8px;
-    background: #fafafa;
     
-    &.dragging-over {
-      border-color: #1890ff;
-      background-color: #e6f7ff;
-    }
-  }
-  
-  .day-boxes {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    max-height: 600px;
-    overflow-y: auto;
-    
-    .day-card {
-      border: 1px solid #f0f0f0;
-      
-      .ant-card-head {
-        background: #f5f5f5;
-        padding: 0 12px;
-        
-        .ant-card-head-title {
-          padding: 8px 0;
-        }
-      }
-      
-      .ant-card-body {
-        padding: 12px;
-      }
+    .selected-tours {
+      background: #fff7e6;
+      border-color: #ffd591;
     }
   }
   
@@ -109,12 +46,6 @@
       cursor: grabbing;
     }
     
-    &.optional-tour {
-      .tour-card {
-        border-left: 4px solid #fa8c16;
-      }
-    }
-    
     .tour-card {
       width: 100%;
       
@@ -122,6 +53,8 @@
         padding: 12px;
         display: flex;
         justify-content: space-between;
+        position: relative;
+        z-index: 2;
       }
       
       .tour-info {
@@ -139,17 +72,78 @@
           display: flex;
           flex-direction: column;
           gap: 4px;
+          
+          .price-difference-setting {
+            margin-top: 8px;
+            padding: 8px;
+            background: #f0f9ff;
+            border-radius: 4px;
+            border: 1px solid #bae7ff;
+          }
         }
       }
       
       .tour-actions {
         display: flex;
         align-items: flex-start;
+        gap: 8px;
       }
     }
   }
   
-  .ant-empty {
-    margin: 24px 0;
+  .drop-zone {
+    min-height: 60px;
+    border: 2px dashed #d9d9d9;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8c8c8c;
+    background: #fafafa;
+    transition: all 0.3s;
+    
+    &.drag-over {
+      border-color: #1890ff;
+      background: #e6f7ff;
+      color: #1890ff;
+    }
+    
+    .drop-hint {
+      text-align: center;
+      
+      .anticon {
+        font-size: 24px;
+        margin-bottom: 8px;
+        display: block;
+      }
+    }
+  }
+  
+  .day-section {
+    margin-bottom: 16px;
+    
+    .day-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      
+      h4 {
+        margin: 0;
+        color: #1890ff;
+      }
+    }
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #8c8c8c;
+    
+    .anticon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      color: #d9d9d9;
+    }
   }
 } 

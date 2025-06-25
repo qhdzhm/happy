@@ -13,7 +13,7 @@ const { Option } = Select;
 
 // 添加公共的颜色生成函数
 const getLocationColor = (locationName) => {
-  // 常见地点固定颜色映射
+  // 常见地点固定颜色映射，同一地点使用统一颜色
   const locationColors = {
     '霍巴特': '#13c2c2',
     '朗塞斯顿': '#722ed1',
@@ -28,7 +28,6 @@ const getLocationColor = (locationName) => {
     '一日游': '#108ee9',
     '跟团游': '#fa8c16',
     '待安排': '#bfbfbf',
-    '亚瑟港': '#ff4d4f',
     '塔斯曼半岛': '#ff4d4f',
     '玛丽亚岛': '#ffaa00',
     '摩恩谷': '#9254de',
@@ -36,6 +35,11 @@ const getLocationColor = (locationName) => {
     '非常湾': '#5cdbd3',
     '卡尔德': '#096dd9'
   };
+  
+  // 优先进行精确匹配
+  if (locationColors[locationName]) {
+    return locationColors[locationName];
+  }
   
   // 查找包含关键词的地点名称
   for (const key in locationColors) {

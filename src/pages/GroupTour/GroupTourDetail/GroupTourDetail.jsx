@@ -6,6 +6,7 @@ import { getGroupTourById, updateGroupTour, createGroupTour, uploadGroupTourImag
 import { getDayTourList } from '@/apis/daytour';
 import DragDropTours from '@/components/DragDropTours';
 import ImageUpload from '@/components/ImageUpload';
+import ProductShowcaseUpload from '@/components/ProductShowcaseUpload';
 import './GroupTourDetail.scss';
 import { groupBy } from 'lodash';
 
@@ -23,6 +24,8 @@ const GroupTourDetail = () => {
   const [loading, setLoading] = useState(false);
   const [dayTourLoading, setDayTourLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
+  const [bannerImageUrl, setBannerImageUrl] = useState('');
+  const [productShowcaseImage, setProductShowcaseImage] = useState('');
   const [isEdit, setIsEdit] = useState(false);
   const [groupTourId, setGroupTourId] = useState(null);
   const [availableDates, setAvailableDates] = useState([]);
@@ -61,6 +64,8 @@ const GroupTourDetail = () => {
   const [bulkMode, setBulkMode] = useState(false);
   // 添加状态变量记录当前选择的天数
   const [currentSelectedDay, setCurrentSelectedDay] = useState(undefined);
+  
+
 
   // 添加一个辅助函数，用于重置所有选择天数下拉框
   const resetAllDaySelectors = () => {
@@ -169,6 +174,7 @@ const GroupTourDetail = () => {
           days,
           nights,
           coverImage,
+          bannerImage,
           // 其他字段...
         } = res.data;
         
@@ -209,6 +215,8 @@ const GroupTourDetail = () => {
         // 设置状态变量
         setGroupTourId(tourId || id); // 如果返回的id为空，使用原有id
         setImageUrl(coverImage);
+        setBannerImageUrl(bannerImage);
+        setProductShowcaseImage(res.data.productShowcaseImage || '');
         
         // 设置所选主题和适合人群
         setSelectedThemes(themeIds || []);
@@ -234,6 +242,8 @@ const GroupTourDetail = () => {
         
         // 获取已关联的一日游
         fetchRelatedDayTours(id);
+        
+
       } else {
         message.error(res.msg || '获取团队游详情失败');
       }
@@ -263,12 +273,7 @@ const GroupTourDetail = () => {
     try {
       const res = await getGroupTourItinerary(id);
       if (res.code === 1) {
-        // 确保每个行程项有一个唯一ID，如果原本没有ID
-        const formattedItineraries = (res.data || []).map(item => ({
-          ...item,
-          id: item.id || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` // 生成临时ID
-        }));
-        setItineraries(formattedItineraries);
+        setItineraries(res.data || []);
       } else {
         message.error(res.msg || '获取行程安排失败');
       }
@@ -347,9 +352,13 @@ const GroupTourDetail = () => {
         // 处理返回的数据，确保格式正确
         const relatedTours = res.data.map(tour => ({
           ...tour,
-          dayTourId: tour.dayTourId, // 确保有dayTourId
-          id: tour.id || tour.dayTourId, // 确保有id
-          isOptional: tour.isOptional === 1 || tour.isOptional === true
+          dayTourId: tour.day_tour_id || tour.dayTourId, // 确保有dayTourId
+          id: tour.id || tour.day_tour_id, // 确保有id
+          dayNumber: tour.day_number || tour.dayNumber, // 映射day_number到dayNumber
+          dayTourName: tour.day_tour_name || tour.dayTourName || tour.name, // 映射day_tour_name到dayTourName
+          dayTourDescription: tour.day_tour_description || tour.dayTourDescription || tour.description, // 映射描述字段
+          priceDifference: tour.price_difference || tour.priceDifference || 0, // 映射价格差异
+          price_difference: tour.price_difference || tour.priceDifference || 0 // 保持后端字段名
         }));
         
         setSelectedDayTours(relatedTours);
@@ -374,7 +383,7 @@ const GroupTourDetail = () => {
         id: groupTourId,
         name: values.title,
         description: values.description,
-        price: values.price,
+        price: parseFloat(values.price),
         discountedPrice: values.discountedPrice || values.price, // 如果未设置折扣价格，使用原价
         duration: values.duration,
         location: values.location,
@@ -382,6 +391,7 @@ const GroupTourDetail = () => {
         days: values.days,
         nights: values.nights,
         coverImage: imageUrl,
+        bannerImage: bannerImageUrl || null,
         
         // 确保主题和适合人群数据正确
         themeIds: selectedThemes || [],
@@ -450,6 +460,8 @@ const GroupTourDetail = () => {
       }
     }
   };
+
+
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -648,7 +660,7 @@ const GroupTourDetail = () => {
       const formattedDayTours = selectedDayTours.map(tour => ({
         dayTourId: tour.dayTourId || tour.id,
         dayNumber: tour.dayNumber,
-        isOptional: tour.isOptional ? 1 : 0
+        priceDifference: tour.priceDifference !== undefined ? tour.priceDifference : (tour.price_difference !== undefined ? tour.price_difference : 0)  // 正确传递价格差异，包括0值
       }));
       
       console.log('保存关联一日游数据:', formattedDayTours);
@@ -770,13 +782,7 @@ const GroupTourDetail = () => {
     setSelectedDayTours(selectedDayTours.filter(item => item.id !== itemId));
   };
   
-  const toggleDayTourOptional = (itemId) => {
-    setSelectedDayTours(
-      selectedDayTours.map(item => 
-        item.id === itemId ? { ...item, isOptional: !item.isOptional } : item
-      )
-    );
-  };
+
   
   const renderDayTourSelector = () => {
     const dayOptions = Array.from({ length: daysCount + 1 }, (_, i) => ({ 
@@ -881,13 +887,6 @@ const GroupTourDetail = () => {
                           <List.Item
                             actions={[
                               <Button 
-                                type={item.isOptional ? "primary" : "default"} 
-                                size="small"
-                                onClick={() => toggleDayTourOptional(item.id)}
-                              >
-                                {item.isOptional ? '可选项' : '必选项'}
-                              </Button>,
-                              <Button 
                                 type="danger" 
                                 size="small"
                                 icon={<DeleteOutlined />}
@@ -990,45 +989,53 @@ const GroupTourDetail = () => {
   const renderDayToursTabContent = () => {
     return (
       <div className="day-tours-tab">
-        <Spin spinning={dayTourLoading}>
-          <Alert
-            message="拖拽提示"
-            description="您可以通过拖拽来关联或移动一日游，从左侧拖到右侧添加一日游，从右侧拖回左侧移除一日游，也可以在不同天数之间拖动调整。"
-            type="info"
-            showIcon
-            style={{ marginBottom: '20px' }}
-          />
+        <Tabs defaultActiveKey="basic" type="card">
+          <TabPane tab="基础关联" key="basic">
+            <Spin spinning={dayTourLoading}>
+              <Alert
+                message="拖拽提示"
+                description="您可以通过拖拽来关联或移动一日游，从左侧拖到右侧添加一日游，从右侧拖回左侧移除一日游，也可以在不同天数之间拖动调整。"
+                type="info"
+                showIcon
+                style={{ marginBottom: '20px' }}
+              />
+              
+              <DragDropTours
+                allDayTours={allDayTours}
+                selectedDayTours={selectedDayTours}
+                daysCount={form.getFieldValue('days') || daysCount}
+                loading={dayTourLoading}
+                onSelectedToursChange={(tours) => {
+                  setSelectedDayTours(tours);
+                }}
+              />
+              
+              <div style={{ marginTop: '16px', textAlign: 'center' }}>
+                <Button 
+                  type="primary" 
+                  onClick={saveDayTourRelations} 
+                  style={{ marginRight: '8px' }}
+                >
+                  保存关联
+                </Button>
+                <Button 
+                  type="primary"
+                  onClick={generateItineraryFromDayTours}
+                >
+                  根据关联一日游生成行程
+                </Button>
+              </div>
+            </Spin>
+          </TabPane>
           
-          <DragDropTours
-            allDayTours={allDayTours}
-            selectedDayTours={selectedDayTours}
-            daysCount={form.getFieldValue('days') || daysCount}
-            loading={dayTourLoading}
-            onSelectedToursChange={(tours) => {
-              setSelectedDayTours(tours);
-            }}
-          />
-          
-          <div style={{ marginTop: '16px', textAlign: 'center' }}>
-            <Button 
-              type="primary" 
-              onClick={saveDayTourRelations} 
-              style={{ marginRight: '8px' }}
-            >
-              保存关联
-            </Button>
-            <Button 
-              type="primary"
-              onClick={generateItineraryFromDayTours}
-            >
-              根据关联一日游生成行程
-            </Button>
-          </div>
-        </Spin>
+
+        </Tabs>
       </div>
     );
   };
   
+
+
   // 根据关联一日游生成行程安排
   const generateItineraryFromDayTours = () => {
     // 检查是否有关联的一日游
@@ -1041,23 +1048,66 @@ const GroupTourDetail = () => {
     // 清空前端状态中的行程
     setItineraries([]);
     
-    // 按天数分组
-    const dayToursGroupedByDay = groupBy(selectedDayTours, 'dayNumber');
+    // 按天数分组 - 使用正确的字段名
+    const dayToursGroupedByDay = groupBy(selectedDayTours, 'day_number');
     
     // 遍历每天的一日游，生成行程项
     const newItineraries = [];
 
     Object.keys(dayToursGroupedByDay).forEach(day => {
       const toursForDay = dayToursGroupedByDay[day];
-      const tourTitles = toursForDay.map(tour => tour.dayTourName).join('、');
+      
+      let title, description;
+      
+      if (toursForDay.length === 1) {
+        // 只有一个一日游，直接使用其名称
+        const tour = toursForDay[0];
+        const tourName = tour.day_tour_name || tour.dayTourName || tour.name || '未知一日游';
+        title = `第${day}天: ${tourName}`;
+        
+        // 使用该一日游的描述
+        const tourDescription = tour.day_tour_description || tour.dayTourDescription || tour.description;
+        if (tourDescription) {
+          description = tourDescription;
+        } else {
+          const location = tour.location || '未知地点';
+          description = `${tourName}: ${location}`;
+        }
+      } else {
+        // 多个一日游，显示为并列的可选项目
+        title = `第${day}天: 可选行程 (${toursForDay.length}个选项)`;
+        
+        // 描述：列出所有可选项目，强调并列关系
+        description = `本天提供${toursForDay.length}个可选行程，游客可根据个人喜好选择其中一个：\n\n` +
+          toursForDay.map((tour, index) => {
+            const tourName = tour.day_tour_name || tour.dayTourName || tour.name || '未知一日游';
+            const tourDescription = tour.day_tour_description || tour.dayTourDescription || tour.description;
+            const location = tour.location || '未知地点';
+            
+            let optionDesc = `🎯 选项${index + 1}：${tourName}`;
+            if (location) {
+              optionDesc += ` (${location})`;
+            }
+            if (tourDescription) {
+              // 截取描述的前100个字符，避免太长
+              const shortDesc = tourDescription.length > 100 ? 
+                tourDescription.substring(0, 100) + '...' : tourDescription;
+              optionDesc += `\n   ${shortDesc}`;
+            }
+            
+            return optionDesc;
+          }).join('\n\n');
+        
+        description += `\n\n💡 预订时请选择其中一个项目参加。`;
+      }
       
       // 创建行程项
       const itineraryItem = {
         id: null, // ID将由后端生成
         groupTourId: groupTourId,
         day: parseInt(day),
-        title: `第${day}天: ${tourTitles}`,
-        description: toursForDay.map(tour => `${tour.dayTourName}: ${tour.location}`).join('\n'),
+        title: title,
+        description: description,
         meals: '早午晚餐', // 默认值，可以根据实际情况调整
         accommodation: '舒适酒店', // 默认住宿信息
       };
@@ -1129,7 +1179,8 @@ const GroupTourDetail = () => {
     {
       title: '一日游名称',
       dataIndex: 'dayTourName',
-      key: 'dayTourName'
+      key: 'dayTourName',
+      render: (text, record) => record.dayTourName || record.day_tour_name || record.name || '未知一日游'
     },
     {
       title: '地点',
@@ -1145,13 +1196,13 @@ const GroupTourDetail = () => {
       title: '价格',
       dataIndex: 'price',
       key: 'price',
-      render: (text) => `¥${text}`
+      render: (text) => `$${text}`
     },
     {
-      title: '是否可选',
-      dataIndex: 'isOptional',
-      key: 'isOptional',
-      render: (isOptional) => isOptional ? '是' : '否'
+      title: '价格差异',
+      dataIndex: 'priceDifference',
+      key: 'priceDifference',
+      render: (text) => `$${text || 0}`
     },
     {
       title: '操作',
@@ -1163,11 +1214,6 @@ const GroupTourDetail = () => {
             danger 
             icon={<DeleteOutlined />}
             onClick={() => removeDayTourFromItinerary(record.id)}
-          />
-          <Button
-            type="text"
-            icon={record.isOptional ? <CheckCircleOutlined /> : <QuestionCircleOutlined />}
-            onClick={() => toggleDayTourOptional(record.id)}
           />
         </Space>
       )
@@ -1195,7 +1241,7 @@ const GroupTourDetail = () => {
       title: '价格',
       dataIndex: 'price',
       key: 'price',
-      render: (text) => `¥${text}`
+      render: (text) => `$${text}`
     },
     {
       title: '操作',
@@ -1219,16 +1265,7 @@ const GroupTourDetail = () => {
           />
           <Button
             type="link"
-            onClick={() => {
-              Modal.confirm({
-                title: '可选项',
-                content: '是否将此项设为可选行程？',
-                okText: '是',
-                cancelText: '否',
-                onOk: () => addDayTourToItinerary(record, 1, true),
-                onCancel: () => addDayTourToItinerary(record, 1, false)
-              });
-            }}
+            onClick={() => addDayTourToItinerary(record, 1)}
           >
             添加
           </Button>
@@ -1236,6 +1273,38 @@ const GroupTourDetail = () => {
       )
     }
   ];
+
+  // Banner图片变化处理函数
+  const handleBannerImageChange = async (imageUrl) => {
+    setBannerImageUrl(imageUrl);
+    
+    // 如果是编辑模式且有groupTourId，立即保存Banner图片到数据库
+    if (isEdit && groupTourId) {
+      try {
+        const tourData = {
+          id: groupTourId,
+          groupTourId: groupTourId,
+          bannerImage: imageUrl
+        };
+        
+        const res = await updateGroupTour(tourData);
+        if (res.code === 1) {
+          message.success('Banner图片保存成功');
+        } else {
+          message.error('Banner图片保存失败: ' + (res.msg || ''));
+        }
+      } catch (error) {
+        console.error('保存Banner图片失败:', error);
+        message.error('保存Banner图片失败');
+      }
+    }
+  };
+
+  // 处理产品展示图片变化
+  const handleProductShowcaseImageChange = (imageUrl) => {
+    setProductShowcaseImage(imageUrl);
+    message.success(imageUrl ? '产品展示图片已更新' : '产品展示图片已删除');
+  };
 
   return (
     <div className="group-tour-detail-container">
@@ -1387,8 +1456,8 @@ const GroupTourDetail = () => {
                   min={0} 
                   placeholder="请输入成人价格" 
                   style={{ width: '100%' }} 
-                  formatter={value => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                  parser={value => value.replace(/\¥\s?|(,*)/g, '')}
+                  formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value.replace(/\$\s?|(,*)/g, '')}
                 />
               </Form.Item>
                   </Col>
@@ -1401,8 +1470,8 @@ const GroupTourDetail = () => {
                   min={0} 
                         placeholder="请输入折扣价格" 
                   style={{ width: '100%' }} 
-                  formatter={value => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                  parser={value => value.replace(/\¥\s?|(,*)/g, '')}
+                  formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value.replace(/\$\s?|(,*)/g, '')}
                 />
               </Form.Item>
                   </Col>
@@ -1444,6 +1513,17 @@ const GroupTourDetail = () => {
                           </div>
                         )}
                       </Upload>
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item label="Banner背景图" name="bannerImage">
+                      <div style={{ textAlign: 'center', color: '#666' }}>
+                        <p>Banner图片管理已移至"图片管理"标签页</p>
+                        <p>保存基本信息后，可在图片管理中上传Banner背景图</p>
+                      </div>
                     </Form.Item>
                   </Col>
                 </Row>
@@ -1854,10 +1934,20 @@ const GroupTourDetail = () => {
           },
           {
             key: 'images',
-            label: '图片集',
-            disabled: !isEdit,
-            children: (
-              <div className="section-container">
+            label: '图片管理',
+            children: isEdit && groupTourId ? (
+              <div className="images-management">
+                {/* 产品展示图片 */}
+                <Card style={{ marginBottom: '20px' }}>
+                  <ProductShowcaseUpload
+                    type="group_tour"
+                    productId={groupTourId}
+                    initialImage={productShowcaseImage}
+                    onChange={handleProductShowcaseImageChange}
+                  />
+                </Card>
+                
+                {/* Banner图片和图片画廊 */}
                 <Card variant="borderless">
                   <ImageUpload 
                     type="group_tour" 
@@ -1865,9 +1955,17 @@ const GroupTourDetail = () => {
                     onChange={(images) => {
                       console.log('图片列表已更新:', images);
                     }}
+                    onBannerImageChange={handleBannerImageChange}
+                    initialBannerImage={bannerImageUrl}
                   />
                 </Card>
               </div>
+            ) : (
+              <Card>
+                <div className="empty-placeholder">
+                  <p>保存跟团游信息后才能管理图片</p>
+                </div>
+              </Card>
             )
           }
         ]} />

@@ -1,4 +1,5 @@
 import { clearToken, getToken, instance, setToken } from "@/utils";
+import { clearCsrfToken } from "@/utils/request";
 import { createSlice } from "@reduxjs/toolkit";
 import { message } from "antd";
 
@@ -17,6 +18,7 @@ const userStore = createSlice({
       state.user = {}
       state.token = ''
       clearToken();
+      clearCsrfToken();
     }
   }
 })
@@ -34,6 +36,9 @@ const fetchLogin = (LoginForm)=>{
       
       // 判断返回数据格式：可能直接返回用户对象，也可能是 {code, data} 格式
       if(res.data && (res.data.code === 1 || res.data.token)) {
+        // 登录成功后清除CSRF Token缓存，确保下次获取最新的token
+        clearCsrfToken();
+        
         // 如果直接返回用户对象
         if(res.data.token) {
           dispatch(setUserInfo(res.data))
@@ -49,12 +54,14 @@ const fetchLogin = (LoginForm)=>{
       } else {
         message.error(res.data?.msg || '登录失败')
         clearToken()
+        clearCsrfToken();
         return { code: 0, msg: res.data?.msg || '登录失败' }
       }
     } catch (error) {
       console.error('登录请求出错:', error)
       message.error('登录请求失败')
       clearToken()
+      clearCsrfToken();
       return { code: 0, msg: '网络错误' }
     }
   }

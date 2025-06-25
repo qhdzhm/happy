@@ -120,4 +120,17 @@
       height: 150px;
     }
   }
+
+  // 图片管理区域样式
+  .images-management {
+    .ant-card {
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
 } 

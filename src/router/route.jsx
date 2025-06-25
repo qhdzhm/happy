@@ -41,6 +41,9 @@ import SessionManagement from "@/pages/CustomerService/SessionManagement";
 // 导入旅游团分配组件
 import TourAssignment from "@/pages/TourAssignment";
 
+// 导入折扣管理组件
+import DiscountManagement from "@/pages/DiscountManagement/DiscountManagement";
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -257,6 +260,16 @@ const router = createBrowserRouter([
         meta: {
           title: "添加代理商",
           hidden: true
+        }
+      },
+      
+      // 折扣管理路由
+      {
+        path: "/discount",
+        element: <DiscountManagement />,
+        meta: {
+          title: "折扣设置管理",
+          icon: "PercentageOutlined" 
         }
       },
       

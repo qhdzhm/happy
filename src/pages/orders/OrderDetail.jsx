@@ -316,7 +316,7 @@ const OrderDetail = () => {
               {paymentStatusMap[orderData.paymentStatus] || orderData.paymentStatus}
             </Tag>
           </Descriptions.Item>
-          <Descriptions.Item label="总价格">¥{orderData.totalPrice}</Descriptions.Item>
+                      <Descriptions.Item label="总价格">${orderData.totalPrice}</Descriptions.Item>
           <Descriptions.Item label="旅行类型">
             {tourTypeMap[orderData.tourType] || orderData.tourType}
           </Descriptions.Item>

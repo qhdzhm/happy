@@ -171,7 +171,7 @@ const GroupTours = () => {
       title: '价格',
       dataIndex: 'price',
       key: 'price',
-      render: (price) => `¥${price}`,
+              render: (price) => `$${price}`,
     },
     {
       title: '持续时间',

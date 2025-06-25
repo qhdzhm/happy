@@ -10,6 +10,7 @@ export function uploadImage(formData) {
     url: '/admin/images/upload',
     method: 'post',
     data: formData,
+    timeout: 120000, // 图片上传专用超时时间：2分钟
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -26,6 +27,7 @@ export function saveImage(formData) {
     url: '/admin/images/save',
     method: 'post',
     data: formData,
+    timeout: 120000, // 图片保存专用超时时间：2分钟
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -98,5 +100,65 @@ export function updateImageDescription(id, description) {
     url: `/admin/images/description/${id}`,
     method: 'put',
     data: { description }
+  });
+}
+
+/**
+ * 上传一日游产品展示图片
+ * @param {number} dayTourId 一日游ID
+ * @param {FormData} formData 包含图片的FormData对象
+ * @returns {Promise}
+ */
+export function uploadDayTourShowcaseImage(dayTourId, formData) {
+  return request({
+    url: `/admin/daytour/product-showcase-image/${dayTourId}`,
+    method: 'post',
+    data: formData,
+    timeout: 120000, // 图片上传专用超时时间：2分钟
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+}
+
+/**
+ * 删除一日游产品展示图片
+ * @param {number} dayTourId 一日游ID
+ * @returns {Promise}
+ */
+export function deleteDayTourShowcaseImage(dayTourId) {
+  return request({
+    url: `/admin/daytour/product-showcase-image/${dayTourId}`,
+    method: 'delete'
+  });
+}
+
+/**
+ * 上传团体游产品展示图片
+ * @param {number} groupTourId 团体游ID
+ * @param {FormData} formData 包含图片的FormData对象
+ * @returns {Promise}
+ */
+export function uploadGroupTourShowcaseImage(groupTourId, formData) {
+  return request({
+    url: `/admin/grouptour/product-showcase-image/${groupTourId}`,
+    method: 'post',
+    data: formData,
+    timeout: 120000, // 图片上传专用超时时间：2分钟
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+}
+
+/**
+ * 删除团体游产品展示图片
+ * @param {number} groupTourId 团体游ID
+ * @returns {Promise}
+ */
+export function deleteGroupTourShowcaseImage(groupTourId) {
+  return request({
+    url: `/admin/grouptour/product-showcase-image/${groupTourId}`,
+    method: 'delete'
   });
 } 
