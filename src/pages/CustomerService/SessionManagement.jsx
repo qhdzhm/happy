@@ -281,14 +281,14 @@ const SessionManagement = () => {
     {
       title: '用户信息',
       key: 'userInfo',
-      width: 150,
+      width: 180,
       render: (_, record) => (
         <Space>
           <Avatar size="small" icon={<UserOutlined />} />
           <div>
-            <div>{record.userName || `用户${record.userId}`}</div>
+            <div>{record.userDisplayName || record.userName || `用户${record.userId}`}</div>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              ID: {record.userId}
+              {record.userTypeDesc || '未知类型'} | ID: {record.userId}
             </Text>
           </div>
         </Space>
@@ -332,9 +332,14 @@ const SessionManagement = () => {
       title: '消息数',
       dataIndex: 'messageCount',
       key: 'messageCount',
-      width: 80,
+      width: 100,
       render: (count, record) => (
-        <Badge count={count || record.unreadCount || 0} showZero color="#52c41a" />
+        <Space direction="vertical" size={2}>
+          <Badge count={count || 0} showZero color="#52c41a" />
+          {record.unreadCount > 0 && (
+            <Badge count={record.unreadCount} color="#f50" size="small" />
+          )}
+        </Space>
       )
     },
     {
