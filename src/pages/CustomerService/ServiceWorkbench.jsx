@@ -35,6 +35,8 @@ import {
 import { serviceSessionApi } from '@/api/customerService';
 import adminWebSocketService from '@/utils/websocket';
 import { getToken } from '@/utils';
+import { getUserInfo, shouldUseCookieAuth } from '@/utils/token';
+import store from '@/store';
 import './ServiceWorkbench.scss';
 
 const { Header, Sider, Content } = Layout;
@@ -128,19 +130,50 @@ const ServiceWorkbench = () => {
       
       // 从workbenchData中获取活跃会话和等待队列
       const workbenchData = workbenchResult.data;
-      const activeSessions = workbenchData?.activeSessions || [];
       
-      setActiveSessions(activeSessions);
-      setWaitingQueue(workbenchData?.waitingQueue || []);
-      setStatistics(workbenchData?.statistics || {});
+      // 🔧 修复：确保数据是数组类型
+      let activeSessionsData = [];
+      let waitingQueueData = [];
+      let statisticsData = {};
       
-      console.log('✅ 工作台数据加载完成 - 活跃会话:', activeSessions.length, '等待队列:', workbenchData?.waitingQueue?.length || 0);
+      if (workbenchData) {
+        // 处理活跃会话数据
+        if (Array.isArray(workbenchData.activeSessions)) {
+          activeSessionsData = workbenchData.activeSessions;
+        } else if (workbenchData.activeSessions && Array.isArray(workbenchData.activeSessions.list)) {
+          activeSessionsData = workbenchData.activeSessions.list;
+        } else {
+          console.warn('⚠️ 活跃会话数据格式异常:', workbenchData.activeSessions);
+          activeSessionsData = [];
+        }
+        
+        // 处理等待队列数据
+        if (Array.isArray(workbenchData.waitingQueue)) {
+          waitingQueueData = workbenchData.waitingQueue;
+        } else if (workbenchData.waitingQueue && Array.isArray(workbenchData.waitingQueue.list)) {
+          waitingQueueData = workbenchData.waitingQueue.list;
+        } else {
+          console.warn('⚠️ 等待队列数据格式异常:', workbenchData.waitingQueue);
+          waitingQueueData = [];
+        }
+        
+        // 处理统计数据
+        statisticsData = workbenchData.statistics || {};
+      }
+      
+      console.log('✅ 处理后的数据 - 活跃会话:', activeSessionsData.length, '等待队列:', waitingQueueData.length);
+      
+      setActiveSessions(activeSessionsData);
+      setWaitingQueue(waitingQueueData);
+      setStatistics(statisticsData);
+      
+      console.log('✅ 工作台数据加载完成 - 活跃会话:', activeSessionsData.length, '等待队列:', waitingQueueData.length);
       
       // 尝试恢复之前选中的会话
       const savedSessionId = localStorage.getItem('currentSessionId');
-      if (savedSessionId && activeSessions.length > 0) {
+      if (savedSessionId && activeSessionsData.length > 0) {
         const sessionId = parseInt(savedSessionId);
-        const savedSession = activeSessions.find(s => s.id === sessionId);
+        const savedSession = activeSessionsData.find(s => s.id === sessionId);
         if (savedSession) {
           console.log('🔄 恢复之前选中的会话:', sessionId);
           // 延迟一下，确保状态更新完成
@@ -156,6 +189,10 @@ const ServiceWorkbench = () => {
     } catch (error) {
       console.error('❌ 加载工作台数据失败:', error);
       message.error('加载工作台数据失败: ' + error.message);
+      // 🔧 确保出错时也设置为空数组，避免Table组件报错
+      setActiveSessions([]);
+      setWaitingQueue([]);
+      setStatistics({});
     } finally {
       setLoading(false);
     }
@@ -163,51 +200,90 @@ const ServiceWorkbench = () => {
   
   // 获取当前客服信息
   useEffect(() => {
-    // 方法1：尝试从localStorage获取user对象
     let currentUser = {};
-    try {
-      const userStr = localStorage.getItem('user');
-      if (userStr && userStr !== '{}') {
-        currentUser = JSON.parse(userStr);
-      }
-    } catch (error) {
-      console.error('解析localStorage中的user失败:', error);
-    }
     
-    // 方法2：从JWT token中解析用户信息
-    if (!currentUser.id) {
-      const token = getToken();
-      if (token) {
-        try {
-          // JWT token的payload部分（base64解码）
-          const payloadBase64 = token.split('.')[1];
-          const payload = JSON.parse(atob(payloadBase64));
-          console.log('🔍 JWT payload:', payload);
-          
-          // 从JWT中提取用户信息 - 直接从payload获取
-          if (payload.empId) {
-            currentUser = {
-              id: payload.empId,
-              name: payload.name || payload.username || `员工${payload.empId}`,
-              empId: payload.empId
-            };
-          } else if (payload.claims) {
-            // 备用方案：从claims中获取
-            currentUser = {
-              id: payload.claims.serviceId || payload.claims.empId || payload.claims.id,
-              name: payload.claims.name || payload.claims.username,
-              ...payload.claims
-            };
+    // 🔧 修复Cookie-only模式用户信息获取
+    // 优先从管理后台的token工具获取用户信息（支持Cookie模式）
+    const userInfoFromToken = getUserInfo();
+    
+    if (userInfoFromToken && userInfoFromToken.id) {
+      currentUser = {
+        id: userInfoFromToken.id,
+        name: userInfoFromToken.name || userInfoFromToken.userName || userInfoFromToken.username || `员工${userInfoFromToken.id}`,
+        empId: userInfoFromToken.id,
+        ...userInfoFromToken
+      };
+      console.log('✅ 从token工具获取的管理员用户信息:', currentUser);
+    } else {
+      // 备用方案1：尝试从localStorage获取user对象
+      try {
+        const userStr = localStorage.getItem('user');
+        if (userStr && userStr !== '{}') {
+          const localUser = JSON.parse(userStr);
+          if (localUser.id) {
+            currentUser = localUser;
+            console.log('✅ 从localStorage获取的用户信息:', currentUser);
           }
+        }
+      } catch (error) {
+        console.error('解析localStorage中的user失败:', error);
+      }
+      
+             // 备用方案2：尝试从Redux store获取
+       if (!currentUser.id) {
+         try {
+           const state = store.getState();
+           const reduxUser = state.user?.user;
           
-          console.log('🔍 从JWT解析的用户信息:', currentUser);
+          if (reduxUser && reduxUser.id) {
+            currentUser = {
+              id: reduxUser.id,
+              name: reduxUser.name || reduxUser.userName || reduxUser.username || `员工${reduxUser.id}`,
+              empId: reduxUser.id,
+              ...reduxUser
+            };
+            console.log('✅ 从Redux获取的用户信息:', currentUser);
+          }
         } catch (error) {
-          console.error('解析JWT token失败:', error);
+          console.error('从Redux获取用户信息失败:', error);
+        }
+      }
+      
+      // 备用方案3：尝试解析JWT token（仅在非Cookie模式下）
+      if (!currentUser.id) {
+        const token = getToken();
+        if (token && token !== 'cookie-auth-verified') {
+          try {
+            // JWT token的payload部分（base64解码）
+            const payloadBase64 = token.split('.')[1];
+            const payload = JSON.parse(atob(payloadBase64));
+            console.log('🔍 JWT payload:', payload);
+            
+            // 从JWT中提取用户信息
+            if (payload.empId) {
+              currentUser = {
+                id: payload.empId,
+                name: payload.name || payload.username || `员工${payload.empId}`,
+                empId: payload.empId
+              };
+            } else if (payload.claims) {
+              // 备用方案：从claims中获取
+              currentUser = {
+                id: payload.claims.serviceId || payload.claims.empId || payload.claims.id,
+                name: payload.claims.name || payload.claims.username,
+                ...payload.claims
+              };
+            }
+            
+            console.log('✅ 从JWT解析的用户信息:', currentUser);
+          } catch (error) {
+            console.error('解析JWT token失败:', error);
+          }
         }
       }
     }
     
-    console.log('🔍 工作台页面 - 当前用户信息:', currentUser);
+    console.log('🔍 工作台页面 - 最终确定的用户信息:', currentUser);
     console.log('🔍 工作台页面 - 用户ID:', currentUser.id);
     setServiceInfo(currentUser);
     
@@ -220,6 +296,9 @@ const ServiceWorkbench = () => {
       loadWorkbenchData(currentUser.id);
     } else {
       console.error('❌ 用户ID为空，无法加载工作台数据');
+      console.error('❌ 调试信息：Cookie模式:', shouldUseCookieAuth());
+      console.error('❌ 调试信息：当前token:', getToken());
+      console.error('❌ 调试信息：用户信息:', getUserInfo());
       message.error('无法获取用户信息，请重新登录');
     }
 

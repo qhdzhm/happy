@@ -35,6 +35,7 @@ import {
 } from '@ant-design/icons';
 import { serviceSessionApi } from '@/api/customerService';
 import moment from 'moment';
+import { useSearchParams } from 'react-router-dom';
 import './SessionManagement.scss';
 
 const { RangePicker } = DatePicker;
@@ -43,6 +44,10 @@ const { Search } = Input;
 const { Text, Title } = Typography;
 
 const SessionManagement = () => {
+  const [searchParams] = useSearchParams();
+  const filterServiceId = searchParams.get('serviceId');
+  const filterServiceName = searchParams.get('serviceName');
+  
   const [loading, setLoading] = useState(false);
   const [sessionList, setSessionList] = useState([]);
   const [pagination, setPagination] = useState({
@@ -53,7 +58,7 @@ const SessionManagement = () => {
   const [filters, setFilters] = useState({
     status: null,
     dateRange: null,
-    serviceId: null,
+    serviceId: filterServiceId, // 根据URL参数设置初始过滤
     keyword: ''
   });
   const [selectedSession, setSelectedSession] = useState(null);
@@ -81,14 +86,44 @@ const SessionManagement = () => {
       };
 
       const response = await serviceSessionApi.getSessionList(params);
+      console.log('🔍 会话列表API响应:', response);
       
-      setSessionList(response.data?.records || []);
+      // 🔧 修复：确保数据是数组类型
+      let sessionData = [];
+      let totalCount = 0;
+      
+      if (response && response.data) {
+        if (Array.isArray(response.data)) {
+          sessionData = response.data;
+          totalCount = response.data.length;
+        } else if (response.data.records && Array.isArray(response.data.records)) {
+          sessionData = response.data.records;
+          totalCount = response.data.total || 0;
+        } else if (response.data.list && Array.isArray(response.data.list)) {
+          sessionData = response.data.list;
+          totalCount = response.data.total || response.data.list.length;
+        } else {
+          console.warn('⚠️ 会话列表API返回数据格式异常:', response.data);
+          sessionData = [];
+          totalCount = 0;
+        }
+      }
+      
+      console.log('✅ 设置会话列表数据:', sessionData);
+      setSessionList(sessionData);
       setPagination(prev => ({
         ...prev,
-        total: response.data?.total || 0
+        total: totalCount
       }));
     } catch (error) {
+      console.error('❌ 获取会话列表失败:', error);
       message.error('获取会话列表失败：' + error.message);
+      // 确保出错时也设置为空数组
+      setSessionList([]);
+      setPagination(prev => ({
+        ...prev,
+        total: 0
+      }));
     } finally {
       setLoading(false);
     }
@@ -101,6 +136,8 @@ const SessionManagement = () => {
       setStatistics(response.data || {});
     } catch (error) {
       console.error('获取统计数据失败：', error);
+      // 设置默认统计数据
+      setStatistics({});
     }
   };
 
@@ -108,9 +145,29 @@ const SessionManagement = () => {
   const fetchWaitingQueue = async () => {
     try {
       const response = await serviceSessionApi.getWaitingQueue();
-      setWaitingQueue(response.data || []);
+      console.log('🔍 等待队列API响应:', response);
+      
+      // 🔧 修复：确保数据是数组类型
+      let queueData = [];
+      if (response && response.data) {
+        if (Array.isArray(response.data)) {
+          queueData = response.data;
+        } else if (response.data.list && Array.isArray(response.data.list)) {
+          queueData = response.data.list;
+        } else if (response.data.queue && Array.isArray(response.data.queue)) {
+          queueData = response.data.queue;
+        } else {
+          console.warn('⚠️ 等待队列API返回数据格式异常:', response.data);
+          queueData = [];
+        }
+      }
+      
+      console.log('✅ 设置等待队列数据:', queueData);
+      setWaitingQueue(queueData);
     } catch (error) {
       console.error('获取等待队列失败：', error);
+      // 确保出错时也设置为空数组
+      setWaitingQueue([]);
     }
   };
 
@@ -350,6 +407,23 @@ const SessionManagement = () => {
 
   return (
     <div className="session-management">
+      {/* 客服过滤信息提示 */}
+      {filterServiceId && (
+        <Card size="small" style={{ marginBottom: 16, backgroundColor: '#f6ffed', borderColor: '#b7eb8f' }}>
+          <Space>
+            <MessageOutlined style={{ color: '#52c41a' }} />
+            <Text>正在查看客服 <Text strong>{filterServiceName || filterServiceId}</Text> 的会话记录</Text>
+            <Button 
+              type="link" 
+              size="small"
+              onClick={() => window.location.href = '/customer-service/sessions'}
+            >
+              查看所有会话
+            </Button>
+          </Space>
+        </Card>
+      )}
+      
       {/* 统计卡片 */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={6}>

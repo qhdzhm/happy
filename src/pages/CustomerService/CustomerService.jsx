@@ -49,10 +49,37 @@ const CustomerService = () => {
   const fetchServiceList = async () => {
     setLoading(true);
     try {
-      const response = await customerServiceApi.getServiceList();
-      setServiceList(response.data || []);
+      // 🔧 修复：传递正确的分页参数
+      const params = {
+        page: 1,
+        pageSize: 10
+      };
+      
+      const response = await customerServiceApi.getServiceList(params);
+      console.log('🔍 客服列表API响应:', response);
+      
+      // 🔧 修复：确保数据是数组类型
+      let serviceData = [];
+      if (response && response.data) {
+        if (Array.isArray(response.data)) {
+          serviceData = response.data;
+        } else if (response.data.records && Array.isArray(response.data.records)) {
+          serviceData = response.data.records;
+        } else if (response.data.list && Array.isArray(response.data.list)) {
+          serviceData = response.data.list;
+        } else {
+          console.warn('⚠️ 客服列表API返回数据格式异常:', response.data);
+          serviceData = [];
+        }
+      }
+      
+      console.log('✅ 设置客服列表数据:', serviceData);
+      setServiceList(serviceData);
     } catch (error) {
+      console.error('❌ 获取客服列表失败:', error);
       message.error('获取客服列表失败：' + error.message);
+      // 确保出错时也设置为空数组
+      setServiceList([]);
     } finally {
       setLoading(false);
     }
@@ -112,6 +139,27 @@ const CustomerService = () => {
     return levelMap[level] || '未知';
   };
 
+  // 🔧 修改：角色类型映射，支持管理员、操作员、客服
+  const getRoleText = (role, record) => {
+    const roleMap = {
+      1: '管理员',
+      2: '操作员', 
+      3: '客服',
+      4: '导游'
+    };
+    
+    // 返回角色名称，并在后面显示服务等级（如果有的话）
+    const roleName = roleMap[role] || '未知角色';
+    const serviceLevel = record.serviceLevel ? getServiceLevelText(record.serviceLevel) : '';
+    
+    // 对于有服务等级的角色，显示等级信息
+    if (serviceLevel && role !== 1) {
+      return `${roleName} (${serviceLevel})`;
+    }
+    
+    return roleName;
+  };
+
   // 切换在线状态
   const toggleOnlineStatus = async (employeeId, currentStatus) => {
     try {
@@ -131,6 +179,7 @@ const CustomerService = () => {
       name: record.name,
       username: record.username,
       phone: record.phone,
+      role: record.role, // 添加角色字段
       skillTags: record.skillTags ? record.skillTags.split(',') : [],
       serviceLevel: record.serviceLevel,
       maxConcurrentCustomers: record.maxConcurrentCustomers
@@ -143,6 +192,12 @@ const CustomerService = () => {
     setEditingService(null);
     form.resetFields();
     setModalVisible(true);
+  };
+
+  // 查看客服会话记录
+  const handleViewSessions = (record) => {
+    // 跳转到会话管理页面，并过滤显示该客服的会话
+    window.open(`/customer-service/sessions?serviceId=${record.employeeId}&serviceName=${record.name}`, '_blank');
   };
 
   // 保存客服信息
@@ -176,7 +231,7 @@ const CustomerService = () => {
   // 表格列定义
   const columns = [
     {
-      title: '客服工号',
+      title: '工号',
       dataIndex: 'serviceNo',
       key: 'serviceNo',
       width: 100
@@ -186,6 +241,17 @@ const CustomerService = () => {
       dataIndex: 'name',
       key: 'name',
       width: 100
+    },
+    {
+      title: '角色',
+      dataIndex: 'role',
+      key: 'role',
+      width: 120,
+      render: (role, record) => (
+        <Tag color="blue">
+          {getRoleText(role, record)}
+        </Tag>
+      )
     },
     {
       title: '在线状态',
@@ -276,7 +342,7 @@ const CustomerService = () => {
           <Button
             type="link"
             icon={<MessageOutlined />}
-            onClick={() => {/* 查看会话 */}}
+            onClick={() => handleViewSessions(record)}
           >
             会话
           </Button>
@@ -292,7 +358,7 @@ const CustomerService = () => {
         <Col span={6}>
           <Card>
             <Statistic
-              title="总客服数"
+              title="团队总数"
               value={statistics.totalServices || 0}
               prefix={<UserOutlined />}
             />
@@ -301,7 +367,7 @@ const CustomerService = () => {
         <Col span={6}>
           <Card>
             <Statistic
-              title="在线客服"
+              title="在线成员"
               value={statistics.onlineServices || 0}
               prefix={<Badge status="success" />}
               valueStyle={{ color: '#3f8600' }}
@@ -332,14 +398,14 @@ const CustomerService = () => {
 
       {/* 主要内容 */}
       <Card
-        title="客服管理"
+        title="客服团队管理"
         extra={
           <Button
             type="primary"
             icon={<PlusOutlined />}
             onClick={handleAdd}
           >
-            新增客服
+            新增成员
           </Button>
         }
       >
@@ -359,7 +425,7 @@ const CustomerService = () => {
 
       {/* 编辑/新增模态框 */}
       <Modal
-        title={editingService ? '编辑客服' : '新增客服'}
+        title={editingService ? '编辑团队成员' : '新增团队成员'}
         open={modalVisible}
         onOk={handleSave}
         onCancel={() => setModalVisible(false)}
@@ -369,6 +435,7 @@ const CustomerService = () => {
           form={form}
           layout="vertical"
           initialValues={{
+            role: 3, // 默认客服角色
             serviceLevel: 1,
             maxConcurrentCustomers: 5
           }}
@@ -397,6 +464,19 @@ const CustomerService = () => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
+                label="角色"
+                name="role"
+                rules={[{ required: true, message: '请选择角色' }]}
+              >
+                <Select placeholder="请选择角色">
+                  <Option value={1}>管理员</Option>
+                  <Option value={2}>操作员</Option>
+                  <Option value={3}>客服</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
                 label="手机号"
                 name="phone"
                 rules={[
@@ -407,6 +487,9 @@ const CustomerService = () => {
                 <Input placeholder="请输入手机号" />
               </Form.Item>
             </Col>
+          </Row>
+
+          <Row gutter={16}>
             <Col span={12}>
               <Form.Item
                 label="服务等级"
@@ -421,9 +504,6 @@ const CustomerService = () => {
                 </Select>
               </Form.Item>
             </Col>
-          </Row>
-
-          <Row gutter={16}>
             <Col span={12}>
               <Form.Item
                 label="最大并发客户数"
@@ -438,6 +518,9 @@ const CustomerService = () => {
                 />
               </Form.Item>
             </Col>
+          </Row>
+
+          <Row gutter={16}>
             <Col span={12}>
               <Form.Item
                 label="技能标签"
