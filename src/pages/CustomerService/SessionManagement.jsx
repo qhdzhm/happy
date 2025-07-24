@@ -119,6 +119,7 @@ const SessionManagement = () => {
       }
       
       console.log('✅ 设置会话列表数据:', sessionData);
+      console.log('🔧 第一条记录的字段检查:', sessionData[0] || '无数据');
       setSessionList(sessionData);
       setPagination(prev => ({
         ...prev,
@@ -285,7 +286,7 @@ const SessionManagement = () => {
         <Space>
           <Avatar size="small" icon={<UserOutlined />} />
           <div>
-            <div>{record.userDisplayName || `用户${record.userId}`}</div>
+            <div>{record.userName || `用户${record.userId}`}</div>
             <Text type="secondary" style={{ fontSize: 12 }}>
               ID: {record.userId}
             </Text>
@@ -298,13 +299,13 @@ const SessionManagement = () => {
       key: 'serviceInfo',
       width: 150,
       render: (_, record) => (
-        record.employeeId ? (
+        record.serviceId ? (
           <Space>
             <Avatar size="small" icon={<MessageOutlined />} />
             <div>
-              <div>{record.serviceName || `客服${record.employeeId}`}</div>
+              <div>{record.serviceName || `客服${record.serviceId}`}</div>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                工号: {record.serviceNo || '-'}
+                ID: {record.serviceId}
               </Text>
             </div>
           </Space>
@@ -332,8 +333,8 @@ const SessionManagement = () => {
       dataIndex: 'messageCount',
       key: 'messageCount',
       width: 80,
-      render: (count) => (
-        <Badge count={count || 0} showZero color="#52c41a" />
+      render: (count, record) => (
+        <Badge count={count || record.unreadCount || 0} showZero color="#52c41a" />
       )
     },
     {
@@ -603,6 +604,8 @@ const SessionManagement = () => {
 
       {/* 数据表格 */}
       <Card>
+        {console.log('🔍 表格渲染时的sessionList:', sessionList)}
+        {console.log('📊 表格渲染时的数据长度:', sessionList.length)}
         <Table
           columns={columns}
           dataSource={sessionList}
