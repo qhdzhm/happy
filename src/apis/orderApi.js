@@ -170,4 +170,16 @@ export function updateOrderPassengers(bookingId, passengers) {
     method: 'put',
     data: passengers
   });
+}
+
+/**
+ * 删除已取消的订单
+ * @param {number} bookingId 订单ID
+ * @returns {Promise}
+ */
+export function deleteOrder(bookingId) {
+  return request({
+    url: `/admin/orders/${bookingId}`,
+    method: 'delete'
+  });
 } 

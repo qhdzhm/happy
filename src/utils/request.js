@@ -1,5 +1,5 @@
 import axios from "axios";
-import { clearToken, getToken } from "./token";
+import { clearToken, getToken, shouldUseCookieAuth } from "./token";
 
 // 获取API地址，支持开发环境配置
 const getBaseURL = () => {
@@ -14,7 +14,7 @@ const getBaseURL = () => {
 const instance = axios.create({
   baseURL: getBaseURL(),
   timeout: 60000, // 增加到60秒，适合图片上传
-  withCredentials: true, // 确保发送cookies
+  withCredentials: true, // 确保发送cookies（管理后台Cookie-only模式必需）
 });
 
 // CSRF Token缓存
@@ -33,7 +33,7 @@ const getCsrfToken = async () => {
   
   csrfTokenPromise = (async () => {
     try {
-      console.log('【获取CSRF Token】开始请求');
+      console.log('【管理后台-获取CSRF Token】开始请求');
       const response = await axios.get('/auth/csrf-token', {
         baseURL: getBaseURL(),
         withCredentials: true,
@@ -41,13 +41,13 @@ const getCsrfToken = async () => {
       
       if (response.data && response.data.code === 1 && response.data.data) {
         csrfToken = response.data.data.csrfToken;
-        console.log('【获取CSRF Token】成功:', csrfToken);
+        console.log('【管理后台-获取CSRF Token】成功:', csrfToken);
         return csrfToken;
       } else {
-        throw new Error('获取CSRF Token失败');
+        throw new Error('管理后台获取CSRF Token失败');
       }
     } catch (error) {
-      console.error('【获取CSRF Token】失败:', error);
+      console.error('【管理后台-获取CSRF Token】失败:', error);
       csrfTokenPromise = null;
       throw error;
     }
@@ -65,9 +65,18 @@ const clearCsrfToken = () => {
 // 添加请求调试信息
 instance.interceptors.request.use(
   async function (config) {
-    const token = getToken();
-    if (token) {
-      config.headers["token"] = `${token}`;
+    // 管理后台Cookie-only模式认证
+    if (shouldUseCookieAuth()) {
+      console.log('📝 管理后台Cookie-only模式，依赖Cookie认证');
+      // Cookie-only模式：不添加Authorization头，完全依赖Cookie
+      // 确保withCredentials为true（已在axios.create中设置）
+    } else {
+      // 传统模式：添加token头（兜底）
+      const token = getToken();
+      if (token) {
+        config.headers["token"] = `${token}`;
+        console.log('📝 管理后台传统模式，添加token头');
+      }
     }
     
     // 对于需要CSRF保护的请求方法，添加CSRF Token
@@ -77,7 +86,6 @@ instance.interceptors.request.use(
       const excludedPaths = [
         '/user/login',
         '/user/register', 
-
         '/agent/login',
         '/admin/employee/login',
         '/auth/csrf-token',
@@ -94,24 +102,26 @@ instance.interceptors.request.use(
         try {
           const csrf = await getCsrfToken();
           config.headers["X-CSRF-Token"] = csrf;
-          console.log('【CSRF Token】已添加到请求头:', csrf);
+          console.log('【管理后台-CSRF Token】已添加到请求头:', csrf);
         } catch (error) {
-          console.error('【CSRF Token】获取失败，请求可能会被拒绝:', error);
+          console.error('【管理后台-CSRF Token】获取失败，请求可能会被拒绝:', error);
         }
       }
     }
     
     // 输出请求信息，方便调试
-    console.log(`【API请求】${config.method.toUpperCase()} ${config.url}`, {
+    console.log(`【管理后台-API请求】${config.method.toUpperCase()} ${config.url}`, {
       params: config.params,
       data: config.data,
-      headers: config.headers
+      headers: config.headers,
+      cookieMode: shouldUseCookieAuth(),
+      withCredentials: config.withCredentials
     });
     
     return config;
   },
   function (error) {
-    console.error('【API请求错误】', error);
+    console.error('【管理后台-API请求错误】', error);
     return Promise.reject(error);
   }
 );
@@ -120,7 +130,7 @@ instance.interceptors.request.use(
 instance.interceptors.response.use(
   function (response) {
     // 输出响应信息，方便调试
-    console.log(`【API响应】${response.config.method.toUpperCase()} ${response.config.url}`, response.data);
+    console.log(`【管理后台-API响应】${response.config.method.toUpperCase()} ${response.config.url}`, response.data);
     
     // 检查是否是标准响应格式
     if (response.data && (response.data.code !== undefined || response.data.status !== undefined)) {
@@ -136,22 +146,23 @@ instance.interceptors.response.use(
     }
   },
   function (error) {
-    console.error('【API响应错误】', error);
+    console.error('【管理后台-API响应错误】', error);
     
     if (error.response) {
       const status = error.response.status;
       
       // 401: 未授权，清除token并跳转登录
       if (status === 401) {
-      clearToken();
+        console.warn('🚨 管理后台认证失效，清除认证信息并跳转登录');
+        clearToken();
         clearCsrfToken();
-      window.location.href = '/login';
+        window.location.href = '/login';
       }
       // 403: 可能是CSRF Token失效，清除缓存并重试一次
       else if (status === 403 && error.response.data && 
                error.response.data.msg && 
                error.response.data.msg.includes('CSRF')) {
-        console.warn('【CSRF Token】可能已失效，清除缓存');
+        console.warn('【管理后台-CSRF Token】可能已失效，清除缓存');
         clearCsrfToken();
       }
     }
@@ -162,7 +173,7 @@ instance.interceptors.response.use(
       data: null,
       msg: (error.response && error.response.data && error.response.data.message) || 
            (error.response && error.response.data && error.response.data.msg) || 
-           error.message || '请求失败'
+           error.message || '管理后台请求失败'
     });
   }
 );

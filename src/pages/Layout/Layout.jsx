@@ -22,6 +22,9 @@ const Layout = () => {
     console.log('🚀 启动管理后台WebSocket连接...');
     adminWebSocketService.connect(adminId);
 
+    // 将WebSocket实例挂载到window对象上，供其他组件使用
+    window.adminWebSocket = adminWebSocketService;
+
     // 监听连接状态
     const handleConnected = () => {
       console.log('✅ 管理后台WebSocket连接成功');
@@ -44,6 +47,8 @@ const Layout = () => {
       adminWebSocketService.off('disconnected', handleDisconnected);
       adminWebSocketService.off('error', handleError);
       adminWebSocketService.disconnect();
+      // 清理window对象上的引用
+      window.adminWebSocket = null;
     };
   }, []);
 

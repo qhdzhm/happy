@@ -4,6 +4,7 @@ import {
   HomeOutlined,
   PieChartOutlined,
   OrderedListOutlined,
+  UnorderedListOutlined,
   CompassOutlined,
   TeamOutlined,
   UserOutlined,
@@ -11,7 +12,18 @@ import {
   GlobalOutlined,
   ShopOutlined,
   UserSwitchOutlined,
-  CustomerServiceOutlined
+  CustomerServiceOutlined,
+  AppstoreOutlined,
+  ControlOutlined,
+  ToolOutlined,
+  BankOutlined,
+  PercentageOutlined,
+  CreditCardOutlined,
+  TransactionOutlined,
+  MessageOutlined,
+  CommentOutlined,
+  ScheduleOutlined,
+  DeploymentUnitOutlined
 } from "@ant-design/icons";
 import { useLocation, useNavigate } from "react-router-dom";
 import router from "@/router/route";
@@ -33,6 +45,7 @@ const Sidebar = ({ collapsed }) => {
     HomeOutlined: <HomeOutlined />,
     PieChartOutlined: <PieChartOutlined />,
     OrderedListOutlined: <OrderedListOutlined />,
+    UnorderedListOutlined: <UnorderedListOutlined />,
     CompassOutlined: <CompassOutlined />,
     TeamOutlined: <TeamOutlined />,
     UserOutlined: <UserOutlined />,
@@ -40,7 +53,18 @@ const Sidebar = ({ collapsed }) => {
     GlobalOutlined: <GlobalOutlined />,
     ShopOutlined: <ShopOutlined />,
     UserSwitchOutlined: <UserSwitchOutlined />,
-    CustomerServiceOutlined: <CustomerServiceOutlined />
+    CustomerServiceOutlined: <CustomerServiceOutlined />,
+    AppstoreOutlined: <AppstoreOutlined />,
+    ControlOutlined: <ControlOutlined />,
+    ToolOutlined: <ToolOutlined />,
+    BankOutlined: <BankOutlined />,
+    PercentageOutlined: <PercentageOutlined />,
+    CreditCardOutlined: <CreditCardOutlined />,
+    TransactionOutlined: <TransactionOutlined />,
+    MessageOutlined: <MessageOutlined />,
+    CommentOutlined: <CommentOutlined />,
+    ScheduleOutlined: <ScheduleOutlined />,
+    DeploymentUnitOutlined: <DeploymentUnitOutlined />
   };
 
   // 获取图标
@@ -61,52 +85,64 @@ const Sidebar = ({ collapsed }) => {
         return !item.meta?.hidden;
       });
       
-      // 转换为Ant Design Menu需要的items格式
-      const items = convertToMenuItems(filteredMenus);
+      // 按组分类菜单项
+      const items = groupMenuItems(filteredMenus);
       setMenuItems(items);
       
       // 设置默认展开的菜单
       const pathname = location.pathname;
-      const parentPath = '/' + pathname.split('/')[1];
-      setOpenKeys([parentPath]);
+      const currentRoute = filteredMenus.find(route => route.path === pathname);
+      if (currentRoute && currentRoute.meta?.group && currentRoute.meta.group !== 'core') {
+        setOpenKeys([currentRoute.meta.group]);
+      }
     }
   }, [location.pathname]);
 
-  // 将路由配置转换为Menu的items格式
-  const convertToMenuItems = (routeItems) => {
-    return routeItems.map(item => {
-      const icon = getIcon(item.meta?.icon);
+  // 按组分类菜单项
+  const groupMenuItems = (routeItems) => {
+    const groups = {};
+    const coreItems = [];
+
+    // 分组处理
+    routeItems.forEach(item => {
+      const group = item.meta?.group;
       
-      // 检查是否有子项
-      if (item.children && item.children.length > 0) {
-        const childrenItems = item.children.filter(child => !child.meta?.hidden);
-        
-        if (childrenItems.length === 0) {
-          return {
-            key: item.path,
-            icon,
-            label: item.meta?.title
+      if (group === 'core' || !group) {
+        // 核心菜单项直接放在顶层
+        coreItems.push({
+          key: item.path,
+          icon: getIcon(item.meta?.icon),
+          label: item.meta?.title
+        });
+      } else {
+        // 其他菜单项按组分类
+        if (!groups[group]) {
+          groups[group] = {
+            key: group,
+            icon: getIcon(item.meta?.groupIcon),
+            label: item.meta?.groupTitle,
+            children: []
           };
         }
         
-        return {
+        groups[group].children.push({
           key: item.path,
-          icon,
-          label: item.meta?.title,
-          children: convertToMenuItems(childrenItems)
-        };
+          icon: getIcon(item.meta?.icon),
+          label: item.meta?.title
+        });
       }
-      
-      return {
-        key: item.path,
-        icon,
-        label: item.meta?.title
-      };
     });
+
+    // 合并核心菜单和分组菜单
+    return [...coreItems, ...Object.values(groups)];
   };
 
   // 菜单点击
   const handleMenuClick = ({ key }) => {
+    // 如果是分组key，不进行导航
+    if (!key.startsWith('/')) {
+      return;
+    }
     navigate(key);
   };
 

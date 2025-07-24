@@ -81,3 +81,29 @@ export function getAssignmentByDateAndLocation(date, location) {
   });
 }
 
+/**
+ * 根据订单号搜索行程排序
+ * @param {string} orderNumber 订单号
+ * @returns {Promise} 行程排序数据
+ */
+export function getSchedulesByOrderNumber(orderNumber) {
+  return request({
+    url: '/admin/tour/schedule/search',
+    method: 'get',
+    params: { orderNumber }
+  });
+}
+
+/**
+ * 根据联系人姓名搜索行程排序
+ * @param {string} contactPerson 联系人姓名
+ * @returns {Promise} 行程排序数据
+ */
+export function getSchedulesByContactPerson(contactPerson) {
+  return request({
+    url: '/admin/tour/schedule/search/contact',
+    method: 'get',
+    params: { contactPerson }
+  });
+}
+

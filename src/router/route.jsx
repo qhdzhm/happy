@@ -44,6 +44,12 @@ import TourAssignment from "@/pages/TourAssignment";
 // 导入折扣管理组件
 import DiscountManagement from "@/pages/DiscountManagement/DiscountManagement";
 
+// 导入酒店预订管理组件
+import HotelBookingList from "@/pages/HotelBooking/HotelBookingList";
+import HotelBookingDetail from "@/pages/HotelBooking/HotelBookingDetail";
+import HotelBookingForm from "@/pages/HotelBooking/HotelBookingForm";
+import HotelManagement from "@/pages/HotelBooking/HotelManagement";
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -53,13 +59,15 @@ const router = createBrowserRouter([
       </AuthRoute>
     ),
     children: [
+      // 核心业务模块
       {
         path: "/",
         element: <Dashboard />,
         meta: {
           title: "仪表盘",
           icon: "HomeOutlined", 
-          affix: true
+          affix: true,
+          group: "core"
         }
       },
       {
@@ -67,17 +75,32 @@ const router = createBrowserRouter([
         element: <Statistic />,
         meta: {
           title: "数据统计",
-          icon: "PieChartOutlined" 
+          icon: "PieChartOutlined",
+          group: "core"
         }
       },
       
-      // 订单管理相关路由
+      // 订单与预订管理模块
       {
         path: "/orders",
         element: <OrderList />,
         meta: {
           title: "订单列表",
-          icon: "OrderedListOutlined" 
+          icon: "UnorderedListOutlined",
+          group: "order-management",
+          groupTitle: "订单预订",
+          groupIcon: "OrderedListOutlined"
+        }
+      },
+      {
+        path: "/hotel-bookings",
+        element: <HotelBookingList />,
+        meta: {
+          title: "酒店预订管理",
+          icon: "HomeOutlined",
+          group: "order-management",
+          groupTitle: "订单预订",
+          groupIcon: "OrderedListOutlined"
         }
       },
       {
@@ -96,44 +119,63 @@ const router = createBrowserRouter([
           hidden: true
         }
       },
-      
-      // 行程安排相关路由
       {
-        path: "/tour-arrangement",
-        element: <TourArrangement />,
+        path: "/hotel-bookings/detail/:bookingReference",
+        element: <HotelBookingDetail />,
         meta: {
-          title: "行程安排",
-          icon: "ScheduleOutlined"
+          title: "预订详情",
+          hidden: true
         }
       },
-      
-      // 导游用车分配表页面路由
       {
-        path: "/tour-itinerary",
-        element: <TourItinerary />,
+        path: "/hotel-bookings/add",
+        element: <HotelBookingForm />,
         meta: {
-          title: "导游用车分配表",
+          title: "新增预订",
+          hidden: true
+        }
+      },
+      {
+        path: "/hotel-bookings/edit/:id",
+        element: <HotelBookingForm />,
+        meta: {
+          title: "编辑预订",
           hidden: true
         }
       },
       
-      // 旅游团分配管理路由
-      {
-        path: "/tour-assignment",
-        element: <TourAssignment />,
-        meta: {
-          title: "分配管理",
-          icon: "DeploymentUnitOutlined"
-        }
-      },
-      
-      // 产品管理路由
+      // 产品管理模块
       {
         path: "/daytour",
         element: <DayTours />,
         meta: {
           title: "一日游管理",
-          icon: "CompassOutlined" 
+          icon: "CompassOutlined",
+          group: "product-management",
+          groupTitle: "产品管理",
+          groupIcon: "AppstoreOutlined"
+        }
+      },
+      {
+        path: "/grouptour",
+        element: <GroupTours />,
+        meta: {
+          title: "团队游管理",
+          icon: "TeamOutlined",
+          group: "product-management",
+          groupTitle: "产品管理",
+          groupIcon: "AppstoreOutlined"
+        }
+      },
+      {
+        path: "/hotel-management",
+        element: <HotelManagement />,
+        meta: {
+          title: "酒店管理",
+          icon: "BankOutlined",
+          group: "product-management",
+          groupTitle: "产品管理",
+          groupIcon: "AppstoreOutlined"
         }
       },
       {
@@ -169,14 +211,6 @@ const router = createBrowserRouter([
         }
       },
       {
-        path: "/grouptour",
-        element: <GroupTours />,
-        meta: {
-          title: "团队游管理",
-          icon: "TeamOutlined" 
-        }
-      },
-      {
         path: "/grouptour/add",
         element: <GroupTourDetail />,
         meta: {
@@ -193,13 +227,59 @@ const router = createBrowserRouter([
         }
       },
       
-      // 车辆管理路由
+      // 运营管理模块
+      {
+        path: "/tour-arrangement",
+        element: <TourArrangement />,
+        meta: {
+          title: "行程安排",
+          icon: "ScheduleOutlined",
+          group: "operation-management",
+          groupTitle: "运营管理",
+          groupIcon: "ControlOutlined"
+        }
+      },
+      {
+        path: "/tour-assignment",
+        element: <TourAssignment />,
+        meta: {
+          title: "分配管理",
+          icon: "DeploymentUnitOutlined",
+          group: "operation-management",
+          groupTitle: "运营管理",
+          groupIcon: "ControlOutlined"
+        }
+      },
+      {
+        path: "/tour-itinerary",
+        element: <TourItinerary />,
+        meta: {
+          title: "导游用车分配表",
+          hidden: true
+        }
+      },
+      
+      // 资源管理模块
       {
         path: "/vehicle",
         element: <Vehicle />,
         meta: {
           title: "车辆管理",
-          icon: "CarOutlined" 
+          icon: "CarOutlined",
+          group: "resource-management",
+          groupTitle: "资源管理",
+          groupIcon: "ToolOutlined"
+        }
+      },
+      {
+        path: "/employee",
+        element: <Employee />,
+        meta: {
+          title: "员工管理",
+          icon: "UserSwitchOutlined",
+          group: "resource-management",
+          groupTitle: "资源管理",
+          groupIcon: "ToolOutlined"
         }
       },
       {
@@ -216,16 +296,6 @@ const router = createBrowserRouter([
         meta: {
           title: "编辑车辆",
           hidden: true
-        }
-      },
-      
-      // 员工管理路由
-      {
-        path: "/employee",
-        element: <Employee />,
-        meta: {
-          title: "员工管理",
-          icon: "UserSwitchOutlined" 
         }
       },
       {
@@ -245,13 +315,49 @@ const router = createBrowserRouter([
         }
       },
       
-      // 代理商管理路由
+      // 代理商管理模块
       {
         path: "/agent",
         element: <Agents />,
         meta: {
           title: "代理商管理",
-          icon: "ShopOutlined" 
+          icon: "UserOutlined",
+          group: "agent-management",
+          groupTitle: "代理商管理",
+          groupIcon: "ShopOutlined"
+        }
+      },
+      {
+        path: "/discount",
+        element: <DiscountManagement />,
+        meta: {
+          title: "折扣设置管理",
+          icon: "PercentageOutlined",
+          group: "agent-management",
+          groupTitle: "代理商管理",
+          groupIcon: "ShopOutlined"
+        }
+      },
+      {
+        path: "/credit",
+        element: <AgentCreditManagement />,
+        meta: {
+          title: "信用额度管理",
+          icon: "CreditCardOutlined",
+          group: "agent-management",
+          groupTitle: "代理商管理",
+          groupIcon: "ShopOutlined"
+        }
+      },
+      {
+        path: "/credit/transactions",
+        element: <TransactionListPage />,
+        meta: {
+          title: "信用交易记录",
+          icon: "TransactionOutlined",
+          group: "agent-management",
+          groupTitle: "代理商管理",
+          groupIcon: "ShopOutlined"
         }
       },
       {
@@ -263,41 +369,49 @@ const router = createBrowserRouter([
         }
       },
       
-      // 折扣管理路由
-      {
-        path: "/discount",
-        element: <DiscountManagement />,
-        meta: {
-          title: "折扣设置管理",
-          icon: "PercentageOutlined" 
-        }
-      },
-      
-      // 信用额度管理路由
-      {
-        path: "/credit",
-        element: <AgentCreditManagement />,
-        meta: {
-          title: "信用额度管理",
-          icon: "BankOutlined" 
-        }
-      },
-      {
-        path: "/credit/transactions",
-        element: <TransactionListPage />,
-        meta: {
-          title: "信用交易记录",
-          icon: "TransactionOutlined" 
-        }
-      },
-      
-      // 客户管理路由
+      // 客户服务模块
       {
         path: "/user",
         element: <Users />,
         meta: {
           title: "客户管理",
-          icon: "UserOutlined" 
+          icon: "UserOutlined",
+          group: "customer-service-management",
+          groupTitle: "客户服务",
+          groupIcon: "CustomerServiceOutlined"
+        }
+      },
+      {
+        path: "/customer-service",
+        element: <CustomerService />,
+        meta: {
+          title: "客服管理",
+          icon: "TeamOutlined",
+          group: "customer-service-management",
+          groupTitle: "客户服务",
+          groupIcon: "CustomerServiceOutlined"
+        }
+      },
+      {
+        path: "/customer-service/workbench",
+        element: <ServiceWorkbench />,
+        meta: {
+          title: "客服工作台",
+          icon: "MessageOutlined",
+          group: "customer-service-management",
+          groupTitle: "客户服务",
+          groupIcon: "CustomerServiceOutlined"
+        }
+      },
+      {
+        path: "/customer-service/sessions",
+        element: <SessionManagement />,
+        meta: {
+          title: "会话管理",
+          icon: "CommentOutlined",
+          group: "customer-service-management",
+          groupTitle: "客户服务",
+          groupIcon: "CustomerServiceOutlined"
         }
       },
       {
@@ -306,32 +420,6 @@ const router = createBrowserRouter([
         meta: {
           title: "添加客户",
           hidden: true
-        }
-      },
-      
-      // 客服管理路由
-      {
-        path: "/customer-service",
-        element: <CustomerService />,
-        meta: {
-          title: "客服管理",
-          icon: "CustomerServiceOutlined" 
-        }
-      },
-      {
-        path: "/customer-service/workbench",
-        element: <ServiceWorkbench />,
-        meta: {
-          title: "客服工作台",
-          icon: "MessageOutlined"
-        }
-      },
-      {
-        path: "/customer-service/sessions",
-        element: <SessionManagement />,
-        meta: {
-          title: "会话管理",
-          icon: "CommentOutlined"
         }
       }
     ],

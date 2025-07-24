@@ -4,7 +4,7 @@ import {
   Card, Form, Input, Select, DatePicker, 
   Button, Spin, InputNumber, message, Row, Col, Space 
 } from 'antd';
-import moment from 'moment';
+import dayjs from 'dayjs';
 import { getOrderById, updateOrder } from '../../apis/orderApi';
 
 const { Option } = Select;
@@ -26,15 +26,33 @@ const OrderEdit = () => {
         const response = await getOrderById(bookingId);
         
         if (response.code === 1) {
-          // 处理日期格式
+          // 处理日期格式 - 使用dayjs并确保不进行时区转换
           const orderData = response.data;
+          
+          // 处理日期字段，如果是时间戳则转换，如果是字符串则直接解析
+          const parseDate = (dateValue) => {
+            if (!dateValue) return null;
+            
+            // 如果是时间戳（数字）
+            if (typeof dateValue === 'number') {
+              return dayjs(dateValue).format('YYYY-MM-DD');
+            }
+            
+            // 如果是字符串，提取日期部分
+            if (typeof dateValue === 'string') {
+              return dateValue.substring(0, 10);
+            }
+            
+            return dateValue;
+          };
+          
           const formattedData = {
             ...orderData,
-            bookingDate: orderData.bookingDate ? moment(orderData.bookingDate) : null,
-            tourStartDate: orderData.tourStartDate ? moment(orderData.tourStartDate) : null,
-            tourEndDate: orderData.tourEndDate ? moment(orderData.tourEndDate) : null,
-            pickupDate: orderData.pickupDate ? moment(orderData.pickupDate) : null,
-            dropoffDate: orderData.dropoffDate ? moment(orderData.dropoffDate) : null,
+            bookingDate: orderData.bookingDate ? dayjs(parseDate(orderData.bookingDate)) : null,
+            tourStartDate: orderData.tourStartDate ? dayjs(parseDate(orderData.tourStartDate)) : null,
+            tourEndDate: orderData.tourEndDate ? dayjs(parseDate(orderData.tourEndDate)) : null,
+            pickupDate: orderData.pickupDate ? dayjs(parseDate(orderData.pickupDate)) : null,
+            dropoffDate: orderData.dropoffDate ? dayjs(parseDate(orderData.dropoffDate)) : null,
           };
           form.setFieldsValue(formattedData);
         } else {
@@ -58,7 +76,7 @@ const OrderEdit = () => {
     try {
       setSubmitting(true);
       
-      // 处理日期字段格式
+      // 处理日期字段格式 - 确保与数据库格式一致，不进行时区转换
       const submitData = {
         ...values,
         bookingDate: values.bookingDate ? values.bookingDate.format('YYYY-MM-DD') : null,
@@ -179,7 +197,13 @@ const OrderEdit = () => {
               label="预订日期"
               rules={[{ required: true, message: '请选择预订日期' }]}
             >
-              <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+              <DatePicker 
+                style={{ width: '100%' }} 
+                format="YYYY-MM-DD"
+                defaultValue={dayjs()}
+                defaultPickerValue={dayjs()}
+                disabledDate={(current) => current && current > dayjs().add(2, 'year')}
+              />
             </Form.Item>
           </Col>
         </Row>
@@ -191,7 +215,12 @@ const OrderEdit = () => {
               label="开始日期"
               rules={[{ required: true, message: '请选择开始日期' }]}
             >
-              <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+              <DatePicker 
+                style={{ width: '100%' }} 
+                format="YYYY-MM-DD"
+                defaultPickerValue={dayjs()}
+                disabledDate={(current) => current && (current < dayjs().subtract(1, 'year') || current > dayjs().add(2, 'year'))}
+              />
             </Form.Item>
           </Col>
           <Col span={12}>
@@ -200,7 +229,12 @@ const OrderEdit = () => {
               label="结束日期"
               rules={[{ required: true, message: '请选择结束日期' }]}
             >
-              <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+              <DatePicker 
+                style={{ width: '100%' }} 
+                format="YYYY-MM-DD"
+                defaultPickerValue={dayjs()}
+                disabledDate={(current) => current && (current < dayjs().subtract(1, 'year') || current > dayjs().add(2, 'year'))}
+              />
             </Form.Item>
           </Col>
         </Row>
@@ -296,7 +330,12 @@ const OrderEdit = () => {
               name="pickupDate"
               label="接机日期"
             >
-              <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+              <DatePicker 
+                style={{ width: '100%' }} 
+                format="YYYY-MM-DD"
+                defaultPickerValue={dayjs()}
+                disabledDate={(current) => current && (current < dayjs().subtract(1, 'year') || current > dayjs().add(2, 'year'))}
+              />
             </Form.Item>
           </Col>
           <Col span={12}>
@@ -304,7 +343,12 @@ const OrderEdit = () => {
               name="dropoffDate"
               label="送机日期"
             >
-              <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+              <DatePicker 
+                style={{ width: '100%' }} 
+                format="YYYY-MM-DD"
+                defaultPickerValue={dayjs()}
+                disabledDate={(current) => current && (current < dayjs().subtract(1, 'year') || current > dayjs().add(2, 'year'))}
+              />
             </Form.Item>
           </Col>
         </Row>

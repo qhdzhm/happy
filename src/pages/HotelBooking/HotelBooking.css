@@ -1,0 +1,266 @@
+/* 酒店预订列表页面样式 */
+.hotel-booking-list {
+  padding: 0;
+}
+
+.hotel-booking-list .ant-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.hotel-booking-list .ant-statistic-title {
+  font-size: 14px;
+  color: #666;
+}
+
+.hotel-booking-list .ant-statistic-content {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+/* 酒店预订详情页面样式 */
+.hotel-booking-detail {
+  padding: 0;
+}
+
+.hotel-booking-detail .ant-descriptions-item-label {
+  font-weight: 600;
+  color: #333;
+}
+
+.hotel-booking-detail .ant-descriptions-item-content {
+  color: #666;
+}
+
+.hotel-booking-detail .ant-timeline-item-content {
+  margin-left: 16px;
+}
+
+.hotel-booking-detail .ant-timeline-item-content p {
+  margin: 0;
+}
+
+.hotel-booking-detail .ant-timeline-item-content strong {
+  color: #1890ff;
+}
+
+/* 酒店预订表单页面样式 */
+.hotel-booking-form {
+  padding: 0;
+}
+
+.hotel-booking-form .ant-form-item-label > label {
+  font-weight: 600;
+  color: #333;
+}
+
+.hotel-booking-form .ant-divider-inner-text {
+  font-weight: 600;
+  color: #1890ff;
+}
+
+.hotel-booking-form .ant-input-number {
+  width: 100%;
+}
+
+/* 酒店管理页面样式 */
+.hotel-management {
+  padding: 0;
+}
+
+.hotel-management .ant-tabs-tab {
+  font-weight: 600;
+}
+
+.hotel-management .ant-table-thead > tr > th {
+  background: #fafafa;
+  font-weight: 600;
+  color: #333;
+}
+
+.hotel-management .ant-modal-header {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.hotel-management .ant-modal-title {
+  font-weight: 600;
+  color: #333;
+}
+
+/* 状态标签样式 */
+.status-tag {
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* 操作按钮样式 */
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.action-buttons .ant-btn {
+  border-radius: 6px;
+}
+
+/* 搜索表单样式 */
+.search-form {
+  background: #fafafa;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.search-form .ant-row {
+  align-items: end;
+}
+
+/* 统计卡片样式 */
+.stats-card {
+  text-align: center;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.stats-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* 表格样式 */
+.hotel-table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.hotel-table .ant-table-thead > tr > th {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+}
+
+.hotel-table .ant-table-tbody > tr:hover > td {
+  background: #f5f7fa;
+}
+
+/* 模态框样式 */
+.hotel-modal .ant-modal-content {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.hotel-modal .ant-modal-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+}
+
+.hotel-modal .ant-modal-title {
+  color: white;
+}
+
+.hotel-modal .ant-modal-close {
+  color: white;
+}
+
+.hotel-modal .ant-modal-close:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .hotel-booking-list .ant-col,
+  .hotel-booking-detail .ant-col,
+  .hotel-booking-form .ant-col {
+    margin-bottom: 16px;
+  }
+  
+  .action-buttons {
+    justify-content: center;
+  }
+  
+  .hotel-booking-detail .ant-descriptions {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 576px) {
+  .hotel-booking-list .ant-statistic-content {
+    font-size: 20px;
+  }
+  
+  .hotel-booking-detail h2 {
+    font-size: 18px;
+  }
+  
+  .hotel-booking-form .ant-form-item-label {
+    font-size: 14px;
+  }
+}
+
+/* 动画效果 */
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* 加载状态样式 */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
+/* 空状态样式 */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.empty-state .ant-empty-description {
+  color: #999;
+  font-size: 16px;
+}
+
+/* 成功状态样式 */
+.success-message {
+  color: #52c41a;
+  font-weight: 500;
+}
+
+/* 错误状态样式 */
+.error-message {
+  color: #ff4d4f;
+  font-weight: 500;
+}
+
+/* 警告状态样式 */
+.warning-message {
+  color: #faad14;
+  font-weight: 500;
+} 

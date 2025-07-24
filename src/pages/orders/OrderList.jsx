@@ -5,9 +5,9 @@ import {
   Input, Select, DatePicker, Row, Col, message, Spin 
 } from 'antd';
 import { 
-  getOrderList, confirmOrder, 
-  cancelOrder, completeOrder,
-  getUserOptions, getAgentOptions
+  getOrderList, completeOrder,
+  getUserOptions, getAgentOptions,
+  deleteOrder
 } from '../../apis/orderApi';
 import { formatDateValue } from '../../utils/dateTimeFormat';
 import debounce from 'lodash/debounce';
@@ -214,51 +214,43 @@ const OrderList = () => {
     fetchOrders({ page: 1 });
   };
 
-  // 确认订单
-  const handleConfirm = async (bookingId) => {
-    try {
-      const response = await confirmOrder(bookingId);
-      if (response.code === 1) {
-        message.success('订单确认成功');
-        fetchOrders(form.getFieldsValue());
-      } else {
-        message.error(response.msg || '订单确认失败');
-      }
-    } catch (error) {
-      console.error('确认订单出错:', error);
-      message.error('订单确认失败');
-    }
-  };
-
-  // 取消订单
-  const handleCancel = async (bookingId) => {
-    try {
-      const response = await cancelOrder(bookingId);
-      if (response.code === 1) {
-        message.success('订单取消成功');
-        fetchOrders(form.getFieldsValue());
-      } else {
-        message.error(response.msg || '订单取消失败');
-      }
-    } catch (error) {
-      console.error('取消订单出错:', error);
-      message.error('订单取消失败');
-    }
-  };
-
   // 完成订单
   const handleComplete = async (bookingId) => {
     try {
       const response = await completeOrder(bookingId);
       if (response.code === 1) {
         message.success('订单完成成功');
-        fetchOrders(form.getFieldsValue());
+        fetchOrders({
+          page: pagination.current,
+          pageSize: pagination.pageSize,
+          ...form.getFieldsValue()
+        });
       } else {
         message.error(response.msg || '订单完成失败');
       }
     } catch (error) {
       console.error('完成订单出错:', error);
       message.error('订单完成失败');
+    }
+  };
+
+  // 删除订单
+  const handleDelete = async (bookingId) => {
+    try {
+      const response = await deleteOrder(bookingId);
+      if (response.code === 1) {
+        message.success('订单删除成功');
+        fetchOrders({
+          page: pagination.current,
+          pageSize: pagination.pageSize,
+          ...form.getFieldsValue()
+        });
+      } else {
+        message.error(response.msg || '订单删除失败');
+      }
+    } catch (error) {
+      console.error('删除订单出错:', error);
+      message.error('订单删除失败');
     }
   };
 
@@ -521,6 +513,7 @@ const OrderList = () => {
       render: (_, record) => {
         const isPending = record.status === 'pending';
         const isConfirmed = record.status === 'confirmed';
+        const isCancelled = record.status === 'cancelled';
         const isPaid = record.paymentStatus === 'paid';
         
         return (
@@ -541,26 +534,7 @@ const OrderList = () => {
               更新信息
             </Button>
             
-            {isPending && (
-              <Button
-                type="link"
-                size="small"
-                onClick={() => handleConfirm(record.bookingId)}
-              >
-                确认
-              </Button>
-            )}
-            
-            {(isPending || isConfirmed) && (
-              <Button
-                type="link"
-                size="small"
-                danger
-                onClick={() => handleCancel(record.bookingId)}
-              >
-                取消
-              </Button>
-            )}
+
             
             {isConfirmed && isPaid && (
               <Button
@@ -569,6 +543,21 @@ const OrderList = () => {
                 onClick={() => handleComplete(record.bookingId)}
               >
                 完成
+              </Button>
+            )}
+            
+            {isCancelled && (
+              <Button
+                type="link"
+                size="small"
+                danger
+                onClick={() => {
+                  if (window.confirm('确定要删除这个已取消的订单吗？此操作不可撤销！')) {
+                    handleDelete(record.bookingId);
+                  }
+                }}
+              >
+                删除
               </Button>
             )}
             

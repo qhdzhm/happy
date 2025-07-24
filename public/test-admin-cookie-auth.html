@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台Cookie认证测试</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        .section h3 {
+            color: #333;
+            margin-top: 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .info-box {
+            background: #e8f4fd;
+            border: 1px solid #b8daff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .cookie-item {
+            background: white;
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 3px;
+            border-left: 4px solid #667eea;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .localStorage-item {
+            background: #fff5cd;
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 3px;
+            border-left: 4px solid #f39c12;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 管理后台Cookie认证测试系统</h1>
+        
+        <div class="info-box">
+            <h4>📋 测试目的</h4>
+            <p>验证管理后台Cookie-only认证模式和与用户端的完全隔离：</p>
+            <ul>
+                <li>✅ 管理后台使用专用Cookie名称（adminToken, adminRefreshToken, adminUserInfo）</li>
+                <li>✅ localStorage使用admin_前缀隔离</li>
+                <li>✅ 两个系统互不干扰</li>
+                <li>✅ Cookie-only模式安全性验证</li>
+            </ul>
+        </div>
+
+        <!-- 管理后台认证状态 -->
+        <div class="section">
+            <h3>🔍 管理后台认证状态检查</h3>
+            <button class="btn-primary" onclick="checkAdminAuth()">检查管理后台认证状态</button>
+            <button class="btn-warning" onclick="showAdminCookies()">显示管理后台Cookie</button>
+            <button class="btn-warning" onclick="showAdminLocalStorage()">显示管理后台localStorage</button>
+            <div id="adminAuthStatus"></div>
+        </div>
+
+        <!-- 管理后台登录测试 -->
+        <div class="section">
+            <h3>🚀 管理后台登录测试</h3>
+            <input type="text" id="adminUsername" placeholder="管理员用户名" value="admin" style="padding: 8px; margin: 5px;">
+            <input type="password" id="adminPassword" placeholder="管理员密码" value="123456" style="padding: 8px; margin: 5px;">
+            <br>
+            <button class="btn-success" onclick="adminLogin()">管理后台登录</button>
+            <button class="btn-danger" onclick="adminLogout()">管理后台登出</button>
+            <div id="adminLoginStatus"></div>
+        </div>
+
+        <!-- API测试 -->
+        <div class="section">
+            <h3>🌐 管理后台API测试</h3>
+            <button class="btn-primary" onclick="testAdminApi()">测试管理后台API</button>
+            <button class="btn-primary" onclick="testEmployeeList()">测试员工列表API</button>
+            <div id="adminApiStatus"></div>
+        </div>
+
+        <!-- 隔离验证 -->
+        <div class="section">
+            <h3>🛡️ 隔离验证</h3>
+            <button class="btn-warning" onclick="checkIsolation()">检查存储隔离</button>
+            <button class="btn-danger" onclick="clearAdminAuth()">清理管理后台认证</button>
+            <div id="isolationStatus"></div>
+        </div>
+
+        <!-- 调试信息 -->
+        <div class="section">
+            <h3>🔧 调试信息</h3>
+            <button class="btn-primary" onclick="showDebugInfo()">显示调试信息</button>
+            <div id="debugInfo"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8080';
+
+        // 检查管理后台认证状态
+        async function checkAdminAuth() {
+            const statusDiv = document.getElementById('adminAuthStatus');
+            statusDiv.innerHTML = '<div class="status">🔍 检查管理后台认证状态...</div>';
+
+            try {
+                // 检查Cookie中的管理员token
+                const adminCookies = getAdminCookies();
+                const hasAdminToken = adminCookies.adminToken || adminCookies.adminAuthToken || adminCookies.admin_token;
+                
+                // 检查localStorage中的管理后台数据
+                const adminLocalStorage = getAdminLocalStorage();
+                
+                let statusHtml = '<h4>管理后台认证状态：</h4>';
+                
+                if (hasAdminToken) {
+                    statusHtml += '<div class="status success">✅ Cookie中找到管理员Token</div>';
+                    statusHtml += `<div class="cookie-item">adminToken: ${hasAdminToken.substring(0, 20)}...</div>`;
+                } else {
+                    statusHtml += '<div class="status error">❌ Cookie中未找到管理员Token</div>';
+                }
+                
+                if (Object.keys(adminLocalStorage).length > 0) {
+                    statusHtml += '<div class="status warning">⚠️ localStorage中有管理后台数据（Cookie模式应最小化）</div>';
+                    Object.entries(adminLocalStorage).forEach(([key, value]) => {
+                        const displayValue = typeof value === 'string' && value.length > 30 ? 
+                                           value.substring(0, 30) + '...' : value;
+                        statusHtml += `<div class="localStorage-item">${key}: ${displayValue}</div>`;
+                    });
+                } else {
+                    statusHtml += '<div class="status success">✅ localStorage中无管理后台数据（Cookie-only模式正常）</div>';
+                }
+
+                statusDiv.innerHTML = statusHtml;
+
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ 检查失败: ${error.message}</div>`;
+            }
+        }
+
+        // 管理后台登录
+        async function adminLogin() {
+            const statusDiv = document.getElementById('adminLoginStatus');
+            statusDiv.innerHTML = '<div class="status">🚀 管理后台登录中...</div>';
+
+            try {
+                const username = document.getElementById('adminUsername').value;
+                const password = document.getElementById('adminPassword').value;
+
+                const response = await fetch(`${API_BASE_URL}/admin/employee/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include', // 重要：确保发送和接收Cookie
+                    body: JSON.stringify({
+                        username: username,
+                        password: password
+                    })
+                });
+
+                const result = await response.json();
+                console.log('管理后台登录响应:', result);
+
+                if (result.code === 1) {
+                    statusDiv.innerHTML = `
+                        <div class="status success">✅ 管理后台登录成功！</div>
+                        <div class="info-box">
+                            <strong>用户信息：</strong><br>
+                            ID: ${result.data.id}<br>
+                            用户名: ${result.data.userName}<br>
+                            姓名: ${result.data.name}<br>
+                            Token: ${result.data.token.substring(0, 20)}...
+                        </div>
+                    `;
+                    
+                    // 等待一下让Cookie生效，然后检查认证状态
+                    setTimeout(checkAdminAuth, 500);
+                } else {
+                    statusDiv.innerHTML = `<div class="status error">❌ 管理后台登录失败: ${result.msg}</div>`;
+                }
+
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ 管理后台登录请求失败: ${error.message}</div>`;
+            }
+        }
+
+        // 管理后台登出
+        async function adminLogout() {
+            const statusDiv = document.getElementById('adminLoginStatus');
+            statusDiv.innerHTML = '<div class="status">🚪 管理后台登出中...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/employee/logout`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+
+                const result = await response.json();
+                console.log('管理后台登出响应:', result);
+
+                if (result.code === 1) {
+                    statusDiv.innerHTML = '<div class="status success">✅ 管理后台登出成功！</div>';
+                    setTimeout(checkAdminAuth, 500);
+                } else {
+                    statusDiv.innerHTML = `<div class="status error">❌ 管理后台登出失败: ${result.msg}</div>`;
+                }
+
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ 管理后台登出请求失败: ${error.message}</div>`;
+            }
+        }
+
+        // 测试管理后台API
+        async function testAdminApi() {
+            const statusDiv = document.getElementById('adminApiStatus');
+            statusDiv.innerHTML = '<div class="status">🌐 测试管理后台API...</div>';
+
+            try {
+                // 测试需要认证的管理后台API
+                const response = await fetch(`${API_BASE_URL}/admin/employee/page?page=1&pageSize=10`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                console.log('管理后台API响应状态:', response.status);
+                
+                if (response.status === 401) {
+                    statusDiv.innerHTML = '<div class="status error">❌ 管理后台API返回401：未认证或Token过期</div>';
+                    return;
+                }
+
+                const result = await response.json();
+                console.log('管理后台API响应:', result);
+
+                if (result.code === 1) {
+                    statusDiv.innerHTML = `
+                        <div class="status success">✅ 管理后台API调用成功！</div>
+                        <div class="info-box">Cookie-only认证工作正常</div>
+                    `;
+                } else {
+                    statusDiv.innerHTML = `<div class="status error">❌ 管理后台API失败: ${result.msg}</div>`;
+                }
+
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ 管理后台API请求失败: ${error.message}</div>`;
+            }
+        }
+
+        // 测试员工列表API
+        async function testEmployeeList() {
+            const statusDiv = document.getElementById('adminApiStatus');
+            statusDiv.innerHTML = '<div class="status">👥 获取员工列表...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/employee/page?page=1&pageSize=5`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                if (response.status === 401) {
+                    statusDiv.innerHTML = '<div class="status error">❌ 员工列表API返回401：管理员认证失败</div>';
+                    return;
+                }
+
+                const result = await response.json();
+                
+                if (result.code === 1) {
+                    let html = '<div class="status success">✅ 员工列表获取成功！</div>';
+                    html += '<div class="info-box">';
+                    html += `<strong>总记录数：</strong>${result.data.total}<br>`;
+                    html += '<strong>员工列表：</strong><br>';
+                    
+                    if (result.data.records && result.data.records.length > 0) {
+                        result.data.records.forEach(emp => {
+                            html += `- ${emp.name} (${emp.username})<br>`;
+                        });
+                    }
+                    html += '</div>';
+                    statusDiv.innerHTML = html;
+                } else {
+                    statusDiv.innerHTML = `<div class="status error">❌ 员工列表获取失败: ${result.msg}</div>`;
+                }
+
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ 员工列表请求失败: ${error.message}</div>`;
+            }
+        }
+
+        // 获取管理后台Cookie
+        function getAdminCookies() {
+            const cookies = {};
+            document.cookie.split(';').forEach(cookie => {
+                const [name, value] = cookie.trim().split('=');
+                if (name && (name.startsWith('admin') || name.includes('admin'))) {
+                    cookies[name] = value;
+                }
+            });
+            return cookies;
+        }
+
+        // 获取管理后台localStorage
+        function getAdminLocalStorage() {
+            const adminData = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('admin_')) {
+                    adminData[key] = localStorage.getItem(key);
+                }
+            }
+            return adminData;
+        }
+
+        // 显示管理后台Cookie
+        function showAdminCookies() {
+            const statusDiv = document.getElementById('adminAuthStatus');
+            const adminCookies = getAdminCookies();
+            
+            let html = '<h4>🍪 管理后台Cookie：</h4>';
+            
+            if (Object.keys(adminCookies).length > 0) {
+                Object.entries(adminCookies).forEach(([name, value]) => {
+                    const displayValue = value && value.length > 50 ? 
+                                       value.substring(0, 50) + '...' : (value || '空');
+                    html += `<div class="cookie-item"><strong>${name}:</strong> ${displayValue}</div>`;
+                });
+            } else {
+                html += '<div class="status warning">⚠️ 未找到管理后台Cookie</div>';
+            }
+            
+            statusDiv.innerHTML = html;
+        }
+
+        // 显示管理后台localStorage
+        function showAdminLocalStorage() {
+            const statusDiv = document.getElementById('adminAuthStatus');
+            const adminData = getAdminLocalStorage();
+            
+            let html = '<h4>💾 管理后台localStorage：</h4>';
+            
+            if (Object.keys(adminData).length > 0) {
+                Object.entries(adminData).forEach(([key, value]) => {
+                    const displayValue = value && value.length > 50 ? 
+                                       value.substring(0, 50) + '...' : (value || '空');
+                    html += `<div class="localStorage-item"><strong>${key}:</strong> ${displayValue}</div>`;
+                });
+            } else {
+                html += '<div class="status success">✅ 无管理后台localStorage数据（Cookie-only模式正常）</div>';
+            }
+            
+            statusDiv.innerHTML = html;
+        }
+
+        // 检查隔离
+        function checkIsolation() {
+            const statusDiv = document.getElementById('isolationStatus');
+            
+            // 检查是否有用户端数据
+            const userCookies = [];
+            const userLocalStorage = [];
+            
+            document.cookie.split(';').forEach(cookie => {
+                const [name] = cookie.trim().split('=');
+                if (name && !name.startsWith('admin') && (name.includes('auth') || name.includes('token') || name === 'userInfo')) {
+                    userCookies.push(name);
+                }
+            });
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && !key.startsWith('admin_') && (key.includes('token') || key.includes('user') || key.includes('agent'))) {
+                    userLocalStorage.push(key);
+                }
+            }
+            
+            let html = '<h4>🛡️ 隔离检查结果：</h4>';
+            
+            if (userCookies.length === 0 && userLocalStorage.length === 0) {
+                html += '<div class="status success">✅ 完美隔离：未发现用户端认证数据</div>';
+            } else {
+                html += '<div class="status warning">⚠️ 发现用户端认证数据（可能存在冲突）：</div>';
+                if (userCookies.length > 0) {
+                    html += `<div class="cookie-item">用户端Cookie: ${userCookies.join(', ')}</div>`;
+                }
+                if (userLocalStorage.length > 0) {
+                    html += `<div class="localStorage-item">用户端localStorage: ${userLocalStorage.join(', ')}</div>`;
+                }
+            }
+            
+            statusDiv.innerHTML = html;
+        }
+
+        // 清理管理后台认证
+        function clearAdminAuth() {
+            const statusDiv = document.getElementById('isolationStatus');
+            
+            // 清理管理后台localStorage
+            const adminKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('admin_')) {
+                    adminKeys.push(key);
+                }
+            }
+            
+            adminKeys.forEach(key => localStorage.removeItem(key));
+            
+            statusDiv.innerHTML = `
+                <div class="status success">✅ 管理后台认证数据已清理</div>
+                <div class="info-box">
+                    已清理 ${adminKeys.length} 个localStorage项目<br>
+                    Cookie需要通过服务端登出清理
+                </div>
+            `;
+            
+            setTimeout(checkAdminAuth, 500);
+        }
+
+        // 显示调试信息
+        function showDebugInfo() {
+            const statusDiv = document.getElementById('debugInfo');
+            
+            const allCookies = {};
+            document.cookie.split(';').forEach(cookie => {
+                const [name, value] = cookie.trim().split('=');
+                if (name) {
+                    allCookies[name] = value ? (value.length > 30 ? value.substring(0, 30) + '...' : value) : '空';
+                }
+            });
+            
+            const allLocalStorage = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key) {
+                    const value = localStorage.getItem(key);
+                    allLocalStorage[key] = value ? (value.length > 30 ? value.substring(0, 30) + '...' : value) : '空';
+                }
+            }
+            
+            let html = '<h4>🔧 完整调试信息：</h4>';
+            
+            html += '<h5>🍪 所有Cookie：</h5>';
+            if (Object.keys(allCookies).length > 0) {
+                Object.entries(allCookies).forEach(([name, value]) => {
+                    const isAdmin = name.startsWith('admin') || name.includes('admin');
+                    const className = isAdmin ? 'cookie-item' : 'localStorage-item';
+                    html += `<div class="${className}">${name}: ${value}</div>`;
+                });
+            } else {
+                html += '<div class="status">无Cookie</div>';
+            }
+            
+            html += '<h5>💾 所有localStorage：</h5>';
+            if (Object.keys(allLocalStorage).length > 0) {
+                Object.entries(allLocalStorage).forEach(([key, value]) => {
+                    const isAdmin = key.startsWith('admin_');
+                    const className = isAdmin ? 'localStorage-item' : 'cookie-item';
+                    html += `<div class="${className}">${key}: ${value}</div>`;
+                });
+            } else {
+                html += '<div class="status">无localStorage数据</div>';
+            }
+            
+            statusDiv.innerHTML = html;
+        }
+
+        // 页面加载时自动检查
+        window.onload = function() {
+            checkAdminAuth();
+        };
+    </script>
+</body>
+</html> 

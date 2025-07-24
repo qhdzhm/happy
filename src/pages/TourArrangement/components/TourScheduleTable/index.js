@@ -12,6 +12,8 @@ import { assignGuideAndVehicle, saveSchedule, getSchedulesByBookingId, saveBatch
 import { updateOrder } from '@/apis/orderApi';
 import GuideVehicleAssignModal from '../../../../components/GuideVehicleAssignModal';
 import AssignmentDetailModal from '../../../../components/AssignmentDetailModal';
+import HotelBookingModal from '../HotelBookingModal';
+import { getHotelBookingByScheduleOrderId } from '@/apis/hotel';
 
 const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
   // 🔍 入口数据调试
@@ -74,6 +76,10 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
   const [editForm] = Form.useForm();
   const [currentEditData, setCurrentEditData] = useState(null);
   
+  // 酒店预订弹窗状态
+  const [hotelBookingModalVisible, setHotelBookingModalVisible] = useState(false);
+  const [currentHotelBookingData, setCurrentHotelBookingData] = useState(null);
+  
   // 横向滚动容器引用
   const scrollContainerRef = useRef(null);
   
@@ -87,6 +93,10 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
   // Refs for tracking draggable elements
   const dragItemRef = useRef(null);
   const dragNodeRef = useRef(null);
+
+  // 新增状态：订单组颜色映射和酒店预订状态
+  const [orderGroupColors, setOrderGroupColors] = useState({});
+  const [hotelBookingStatus, setHotelBookingStatus] = useState({});
 
   // 组件初始化时清除本地存储，确保不使用可能包含静态数据的草稿
   useEffect(() => {
@@ -1395,6 +1405,190 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
     );
   };
 
+  // 生成订单组颜色的函数
+  const generateOrderGroupColors = useCallback((tourGroups) => {
+    const colors = [
+      '#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', 
+      '#13c2c2', '#eb2f96', '#fa541c', '#a0d911', '#2f54eb',
+      '#fa8c16', '#eb2f96', '#52c41a', '#1890ff', '#722ed1'
+    ];
+    
+    const colorMap = {};
+    const usedOrderIds = new Set();
+    
+    tourGroups.forEach((group, index) => {
+      // 使用订单ID作为分组依据，如果没有则使用group.id
+      const orderId = group.orderId || group.customer?.orderId || group.id;
+      
+      if (!usedOrderIds.has(orderId)) {
+        colorMap[orderId] = colors[usedOrderIds.size % colors.length];
+        usedOrderIds.add(orderId);
+      }
+    });
+    
+    return colorMap;
+  }, []);
+
+  // 检查订单酒店预订状态的函数
+  const checkHotelBookingStatus = useCallback(async (tourGroups) => {
+    console.log('🏨 [调试] 开始检查酒店预订状态，订单组数量:', tourGroups.length);
+    const statusMap = {};
+    
+    try {
+      // 为每个订单检查酒店预订状态
+      const promises = tourGroups.map(async (group, index) => {
+        try {
+          const orderId = group.orderId || group.customer?.orderId || group.id;
+          console.log(`🏨 [调试] 检查订单 ${index + 1}/${tourGroups.length}: `, {
+            orderId,
+            groupId: group.id,
+            customerOrderId: group.customer?.orderId
+          });
+          
+          if (statusMap[orderId] !== undefined) {
+            console.log(`🏨 [调试] 订单 ${orderId} 已检查过，跳过`);
+            return; // 已经检查过这个订单了
+          }
+          
+          // 调用API检查酒店预订状态
+          console.log(`🏨 [调试] 正在调用API检查订单 ${orderId} 的酒店预订状态...`);
+          const response = await getHotelBookingByScheduleOrderId(orderId);
+          console.log(`🏨 [调试] 订单 ${orderId} API响应:`, response);
+          
+          if (response && response.code === 1 && response.data) {
+            // 有酒店预订
+            const hotelStatus = {
+              hasHotelBooking: true,
+              hotelBookingStatus: response.data.bookingStatus,
+              hotelInfo: response.data,
+              isConfirmed: response.data.bookingStatus === 'confirmed'
+            };
+            statusMap[orderId] = hotelStatus;
+            console.log(`✅ [调试] 订单 ${orderId} 有酒店预订:`, hotelStatus);
+          } else {
+            statusMap[orderId] = {
+              hasHotelBooking: false,
+              hotelBookingStatus: null,
+              hotelInfo: null,
+              isConfirmed: false
+            };
+            console.log(`❌ [调试] 订单 ${orderId} 无酒店预订`);
+          }
+        } catch (error) {
+          console.error(`❌ [调试] 检查订单 ${group.id} 酒店预订状态失败:`, error);
+          const orderId = group.orderId || group.customer?.orderId || group.id;
+          statusMap[orderId] = {
+            hasHotelBooking: false,
+            hotelBookingStatus: null,
+            hotelInfo: null,
+            isConfirmed: false
+          };
+        }
+      });
+      
+      await Promise.all(promises);
+      console.log('🏨 [调试] 酒店预订状态检查完成，结果:', statusMap);
+    } catch (error) {
+      console.error('❌ [调试] 批量检查酒店预订状态失败:', error);
+    }
+    
+    return statusMap;
+  }, []);
+
+  // 当数据更新时重新生成颜色和检查酒店状态
+  useEffect(() => {
+    if (tourGroups && tourGroups.length > 0) {
+      const colors = generateOrderGroupColors(tourGroups);
+      setOrderGroupColors(colors);
+      
+      // 异步检查酒店预订状态
+      checkHotelBookingStatus(tourGroups).then(status => {
+        setHotelBookingStatus(status);
+      });
+    }
+  }, [tourGroups, generateOrderGroupColors, checkHotelBookingStatus]);
+
+  // 获取订单组边框样式的函数
+  const getOrderGroupBorderStyle = (group) => {
+    const orderId = group.orderId || group.customer?.orderId || group.id;
+    const color = orderGroupColors[orderId] || '#d9d9d9';
+    const hotelStatus = hotelBookingStatus[orderId];
+    
+    // 如果有确认的酒店预订，使用更粗的边框和阴影
+    if (hotelStatus?.isConfirmed) {
+      return {
+        border: `3px solid ${color}`,
+        boxShadow: `0 0 8px ${color}40, inset 0 0 8px ${color}20`,
+        borderRadius: '8px'
+      };
+    } else if (hotelStatus?.hasHotelBooking) {
+      // 有酒店预订但未确认，使用虚线边框
+      return {
+        border: `2px dashed ${color}`,
+        boxShadow: `0 0 4px ${color}30`,
+        borderRadius: '6px'
+      };
+    } else {
+      // 普通边框
+      return {
+        border: `2px solid ${color}`,
+        borderRadius: '6px'
+      };
+    }
+  };
+
+  // 获取酒店预订图标
+  const getHotelBookingIcon = (group) => {
+    const orderId = group.orderId || group.customer?.orderId || group.id;
+    const hotelStatus = hotelBookingStatus[orderId];
+    
+    if (hotelStatus?.isConfirmed) {
+      return (
+        <div style={{
+          position: 'absolute',
+          top: '-8px',
+          right: '-8px',
+          width: '20px',
+          height: '20px',
+          backgroundColor: '#52c41a',
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          zIndex: 10,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+        }}>
+          <HomeOutlined />
+        </div>
+      );
+    } else if (hotelStatus?.hasHotelBooking) {
+      return (
+        <div style={{
+          position: 'absolute',
+          top: '-6px',
+          right: '-6px',
+          width: '16px',
+          height: '16px',
+          backgroundColor: '#faad14',
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          fontSize: '10px',
+          zIndex: 10,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+        }}>
+          ?
+        </div>
+      );
+    }
+    return null;
+  };
+
   if (loading) {
     return (
       <div className="loading-container">
@@ -1654,6 +1848,51 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
             </div>
           )}
 
+          {/* 酒店预订状态显示 */}
+          {(() => {
+            const orderId = orderInfo.bookingId;
+            const hotelStatus = hotelBookingStatus[orderId];
+            
+            if (hotelStatus?.hasHotelBooking) {
+              return (
+                <div style={{
+                  marginBottom: '10px', 
+                  padding: '8px', 
+                  backgroundColor: hotelStatus.isConfirmed ? '#f6ffed' : '#fff7e6',
+                  border: `1px solid ${hotelStatus.isConfirmed ? '#b7eb8f' : '#ffd591'}`,
+                  borderRadius: '4px', 
+                  fontSize: '12px'
+                }}>
+                  <div style={{
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    marginBottom: '4px',
+                    color: hotelStatus.isConfirmed ? '#52c41a' : '#fa8c16',
+                    fontWeight: '600'
+                  }}>
+                    <HomeOutlined style={{marginRight: '4px'}} />
+                    {hotelStatus.isConfirmed ? '✅ 酒店已确认' : '⏳ 酒店预订中'}
+                  </div>
+                  {hotelStatus.hotelInfo && (
+                    <div style={{fontSize: '11px', color: '#666'}}>
+                      {hotelStatus.hotelInfo.hotelName && (
+                        <div>🏨 {hotelStatus.hotelInfo.hotelName}</div>
+                      )}
+                      {hotelStatus.hotelInfo.roomType && (
+                        <div>🛏️ {hotelStatus.hotelInfo.roomType}</div>
+                      )}
+                      {hotelStatus.hotelInfo.checkInDate && hotelStatus.hotelInfo.checkOutDate && (
+                        <div>📅 {dayjs(hotelStatus.hotelInfo.checkInDate).format('MM/DD')} - {dayjs(hotelStatus.hotelInfo.checkOutDate).format('MM/DD')}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            
+            return null;
+          })()}
+
           {/* 操作按钮区域 */}
           <div style={{marginTop: '10px', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px', borderTop: '1px solid #e9ecef'}}>
             <div style={{display: 'flex', gap: '6px', justifyContent: 'center'}}>
@@ -1673,7 +1912,18 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
                 onClick={() => handleBookHotel(locationData, orderInfo)}
                 style={{fontSize: '11px', height: '28px', color: '#fa8c16', borderColor: '#fa8c16'}}
               >
-                {orderInfo.hotelLevel ? '分配酒店' : '预定酒店'}
+                {(() => {
+                  const orderId = orderInfo.bookingId;
+                  const hotelStatus = hotelBookingStatus[orderId];
+                  
+                  if (hotelStatus?.isConfirmed) {
+                    return '管理酒店';
+                  } else if (hotelStatus?.hasHotelBooking) {
+                    return '修改酒店';
+                  } else {
+                    return orderInfo.hotelLevel ? '分配酒店' : '预定酒店';
+                  }
+                })()}
               </Button>
             </div>
           </div>
@@ -1719,85 +1969,9 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
   const handleBookHotel = (locationData, orderInfo) => {
     console.log('🏨 酒店预订功能 - 详细信息:', { locationData, orderInfo });
     
-    // 提取必要信息
-    const hotelInfo = {
-      订单号: orderInfo.orderNumber,
-      客户姓名: orderInfo.name,
-      联系电话: orderInfo.phone,
-      入住人数: `${orderInfo.adultCount}成人 + ${orderInfo.childCount}儿童`,
-      酒店星级: orderInfo.hotelLevel || '未指定',
-      房型需求: orderInfo.roomType || '标准房型',
-      房间数量: orderInfo.hotelRoomCount || 1,
-      房间详情: orderInfo.roomDetails || '标准房型',
-      特殊要求: orderInfo.specialRequests || '无',
-      预计入住日期: locationData.date || '待确定',
-      当前行程天数: orderInfo.dayNumber || 1
-    };
-    
-    // 显示酒店信息确认对话框
-    Modal.confirm({
-      title: '🏨 酒店预订确认',
-      width: 600,
-      content: (
-        <div style={{padding: '16px 0'}}>
-          <div style={{marginBottom: '16px', fontSize: '14px', color: '#595959'}}>
-            请确认以下酒店预订信息，点击确定将进入酒店选择和预订流程。
-          </div>
-          
-          <div style={{
-            backgroundColor: '#f9f9f9', 
-            padding: '12px', 
-            borderRadius: '6px',
-            border: '1px solid #d9d9d9'
-          }}>
-            {Object.entries(hotelInfo).map(([key, value]) => (
-              <div key={key} style={{
-                display: 'flex', 
-                marginBottom: '8px',
-                fontSize: '13px'
-              }}>
-                <span style={{
-                  minWidth: '100px',
-                  color: '#8c8c8c',
-                  fontWeight: '500'
-                }}>
-                  {key}:
-                </span>
-                <span style={{color: '#262626', fontWeight: '500'}}>
-                  {value}
-                </span>
-              </div>
-            ))}
-          </div>
-          
-          <div style={{
-            marginTop: '12px',
-            padding: '8px 12px',
-            backgroundColor: '#e6f7ff',
-            borderRadius: '4px',
-            fontSize: '12px',
-            color: '#1890ff'
-          }}>
-            💡 提示：点击确定后将打开酒店选择界面，您可以根据客户需求选择合适的酒店。
-          </div>
-        </div>
-      ),
-      okText: '开始预订',
-      cancelText: '取消',
-      onOk: () => {
-        message.loading('正在打开酒店预订系统...', 1);
-        setTimeout(() => {
-          // TODO: 这里可以跳转到酒店预订页面或打开酒店选择弹窗
-          message.success('酒店预订功能即将开放，敬请期待！');
-          // 可以设置一个状态来打开酒店选择弹窗
-          // setHotelBookingModalVisible(true);
-          // setCurrentHotelBookingData({ locationData, orderInfo, hotelInfo });
-        }, 1000);
-      },
-      onCancel: () => {
-        console.log('用户取消了酒店预订');
-      }
-    });
+    // 直接打开酒店预订弹窗
+    setHotelBookingModalVisible(true);
+    setCurrentHotelBookingData({ locationData, orderInfo });
   };
 
   // 保存编辑的排团表信息
@@ -3031,21 +3205,48 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
                 const segmentDates = dates.slice(startIdx, endIdx + 1);
                 const containerId = `${group.id}-segment-${segIndex}`;
                 
+                const orderId = group.orderId || group.customer?.orderId || group.id;
+                const hotelStatus = hotelBookingStatus[orderId];
+                const orderColor = orderGroupColors[orderId] || '#d9d9d9';
+                
+                // 生成订单组编号（简化显示）
+                const orderGroupNumber = Object.keys(orderGroupColors).indexOf(orderId) + 1;
+                
+                // 生成CSS类名
+                let containerClasses = 'tour-container';
+                if (hotelStatus?.isConfirmed) {
+                  containerClasses += ' hotel-confirmed';
+                } else if (hotelStatus?.hasHotelBooking) {
+                  containerClasses += ' hotel-pending';
+                }
+
                 return (
                   <div 
                     key={containerId} 
-                    className="tour-container"
+                    className={containerClasses}
                     style={{ 
                       position: 'absolute',
                               top: `${40 + startIdx * 70}px`,
                               height: `${segmentDates.length * 70}px`,
                               left: 0,
                               right: 0,
-                              margin: '0 5px'
+                              margin: '0 5px',
+                              ...getOrderGroupBorderStyle(group)
                     }}
                     onDragEnter={(e) => handleContainerDragEnter(e, containerId)}
                     onDragOver={(e) => e.preventDefault()}
                   >
+                    {/* 订单组编号标识 */}
+                    <div 
+                      className="order-group-identifier"
+                      style={{ backgroundColor: orderColor }}
+                      title={`订单组 ${orderGroupNumber} - ${orderId}`}
+                    >
+                      {orderGroupNumber}
+                    </div>
+                    
+                    {/* 酒店预订状态图标 */}
+                    {getHotelBookingIcon(group)}
                     {segmentDates.map((date, dateIndex) => {
                       const locationData = group.locationsByDate[date.date];
                       const tooltipId = `${group.id}-${date.date}`;
@@ -3214,6 +3415,37 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
           </Form.Item>
         </Form>
       </Modal>
+      
+      {/* 酒店预订弹窗 */}
+      <HotelBookingModal
+        visible={hotelBookingModalVisible}
+        onCancel={() => {
+          setHotelBookingModalVisible(false);
+          setCurrentHotelBookingData(null);
+        }}
+        onSuccess={async () => {
+          setHotelBookingModalVisible(false);
+          setCurrentHotelBookingData(null);
+          message.success('酒店预订操作成功！');
+          
+          // 重新检查酒店预订状态
+          if (tourGroups && tourGroups.length > 0) {
+            try {
+              const updatedHotelStatus = await checkHotelBookingStatus(tourGroups);
+              setHotelBookingStatus(updatedHotelStatus);
+            } catch (error) {
+              console.error('刷新酒店预订状态失败:', error);
+            }
+          }
+          
+          // 刷新整体数据
+          if (onUpdate) {
+            onUpdate();
+          }
+        }}
+        locationData={currentHotelBookingData?.locationData}
+        orderInfo={currentHotelBookingData?.orderInfo}
+      />
       
       {/* 固定在右下角的横向导航控制器 - 始终显示 */}
       <div className="horizontal-nav-controls">

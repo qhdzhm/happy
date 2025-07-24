@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 修复乘客人数统计工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .title {
+            color: #1890ff;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 24px;
+        }
+        .description {
+            background: #f0f8ff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        .warning {
+            background: #fff7e6;
+            border: 1px solid #ffd591;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            color: #d4380d;
+        }
+        .button {
+            background: #1890ff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-bottom: 20px;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background: #40a9ff;
+        }
+        .button:disabled {
+            background: #d9d9d9;
+            cursor: not-allowed;
+        }
+        .loading {
+            text-align: center;
+            color: #1890ff;
+            font-size: 16px;
+            margin: 20px 0;
+        }
+        .result {
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+        }
+        .success {
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #52c41a;
+        }
+        .error {
+            background: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #ff4d4f;
+        }
+        .log {
+            background: #fafafa;
+            border: 1px solid #d9d9d9;
+            padding: 15px;
+            border-radius: 6px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">🔧 订单乘客人数统计修复工具</h1>
+        
+        <div class="description">
+            <h3>📋 功能说明</h3>
+            <p>此工具用于修复订单管理系统中的数据不一致问题：</p>
+            <ul>
+                <li><strong>问题原因：</strong>当添加/删除乘客时，只更新了乘客表和关联表，但没有同步更新订单表中的人数字段</li>
+                <li><strong>修复内容：</strong>根据实际的乘客数据重新计算并更新每个订单的成人数量(adultCount)和儿童数量(childCount)</li>
+                <li><strong>处理范围：</strong>检查所有订单，只修复数据不一致的订单</li>
+            </ul>
+        </div>
+        
+        <div class="warning">
+            ⚠️ <strong>注意事项：</strong>
+            <ul>
+                <li>此操作会修改数据库中的订单记录</li>
+                <li>建议在数据库备份后执行</li>
+                <li>修复过程可能需要一些时间，请耐心等待</li>
+            </ul>
+        </div>
+        
+        <button id="fixButton" class="button" onclick="startFix()">
+            🚀 开始修复订单人数统计
+        </button>
+        
+        <div id="loading" class="loading" style="display: none;">
+            ⏳ 正在修复中，请稍候...
+        </div>
+        
+        <div id="result" style="display: none;"></div>
+        
+        <div id="log" class="log" style="display: none;">
+            <strong>📝 修复日志：</strong><br>
+            <div id="logContent"></div>
+        </div>
+    </div>
+
+    <script>
+        async function startFix() {
+            const button = document.getElementById('fixButton');
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            const log = document.getElementById('log');
+            const logContent = document.getElementById('logContent');
+            
+            // 重置状态
+            button.disabled = true;
+            loading.style.display = 'block';
+            result.style.display = 'none';
+            log.style.display = 'block';
+            logContent.innerHTML = '';
+            
+            // 添加开始日志
+            addLog('🚀 开始执行批量修复...');
+            addLog('📊 正在检查所有订单的乘客人数统计...');
+            
+            try {
+                const response = await fetch('/admin/passengers/fix-passenger-counts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                loading.style.display = 'none';
+                result.style.display = 'block';
+                
+                if (response.ok && data.code === 1) {
+                    result.className = 'result success';
+                    result.textContent = data.data || data.msg;
+                    addLog('✅ 修复完成！');
+                    addLog('📋 ' + (data.data || data.msg));
+                } else {
+                    result.className = 'result error';
+                    result.textContent = '修复失败：' + (data.msg || '未知错误');
+                    addLog('❌ 修复失败：' + (data.msg || '未知错误'));
+                }
+                
+            } catch (error) {
+                loading.style.display = 'none';
+                result.style.display = 'block';
+                result.className = 'result error';
+                result.textContent = '网络错误：' + error.message;
+                addLog('❌ 网络错误：' + error.message);
+                console.error('修复过程出错:', error);
+            } finally {
+                button.disabled = false;
+                addLog('🔚 修复过程结束');
+            }
+        }
+        
+        function addLog(message) {
+            const logContent = document.getElementById('logContent');
+            const timestamp = new Date().toLocaleTimeString();
+            logContent.innerHTML += `[${timestamp}] ${message}<br>`;
+            logContent.scrollTop = logContent.scrollHeight;
+        }
+        
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔧 订单乘客人数统计修复工具已加载');
+        });
+    </script>
+</body>
+</html> 

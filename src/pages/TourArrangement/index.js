@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Card, DatePicker, Button, message, Space, Select, Empty, Spin, Tooltip } from 'antd';
-import { ReloadOutlined, FilterOutlined, SaveOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { Card, DatePicker, Button, message, Space, Select, Empty, Spin, Tooltip, Input, Radio } from 'antd';
+import { ReloadOutlined, FilterOutlined, SaveOutlined, InfoCircleOutlined, SearchOutlined, ClearOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import TourScheduleTable from './components/TourScheduleTable';
+import SearchResultModal from './components/SearchResultModal';
+import ColorLegend from './components/ColorLegend';
+import UILegend from './components/UILegend';
 import { getOrderList } from '@/apis/orderApi';
-import { getSchedulesByDateRange, getSchedulesByBookingId, saveBatchSchedules } from '@/api/tourSchedule';
+import { getSchedulesByDateRange, getSchedulesByBookingId, saveBatchSchedules, getSchedulesByOrderNumber, getSchedulesByContactPerson } from '@/api/tourSchedule';
 import request from '@/utils/request';
 import './index.scss';
 
@@ -92,6 +95,12 @@ const TourArrangement = () => {
   const [scheduleData, setScheduleData] = useState([]);
   const [viewMode, setViewMode] = useState('all'); // 'all', 'day_tour', 'group_tour'
   const [refreshKey, setRefreshKey] = useState(0); // 用于强制刷新数据
+  const [searchMode, setSearchMode] = useState(false); // 是否为搜索模式
+  const [searchOrderNumber, setSearchOrderNumber] = useState(''); // 搜索的订单号
+  const [searchType, setSearchType] = useState('orderNumber'); // 搜索类型：orderNumber 或 contactPerson
+  const [searchKeyword, setSearchKeyword] = useState(''); // 通用搜索关键词
+  const [showSearchModal, setShowSearchModal] = useState(false); // 是否显示搜索结果弹窗
+  const [searchResults, setSearchResults] = useState([]); // 搜索结果
 
 
   // 重置日期到当前月份附近
@@ -167,7 +176,7 @@ const TourArrangement = () => {
 
   useEffect(() => {
     fetchScheduleData();
-  }, [dateRange, viewMode, refreshKey]);
+  }, [dateRange, viewMode, refreshKey, searchMode, searchOrderNumber]);
 
   // 格式化日期
   const formatDate = (date) => {
@@ -179,47 +188,65 @@ const TourArrangement = () => {
     setRefreshKey(prev => prev + 1);
   }, []);
   
-  // 获取排团表数据（只从排团表获取，不再从订单表获取）
+  // 获取排团表数据（支持搜索模式和日期范围模式）
   const fetchScheduleData = async () => {
     
     setLoading(true);
     try {
-      // 准备日期范围参数
-      const startDate = formatDate(dateRange[0]);
-      const endDate = formatDate(dateRange[1]);
+      let scheduleList = [];
       
-      console.log('🔄 只从排团表获取行程数据:', startDate, '至', endDate);
-      
-      // 只获取排团表的行程数据
-      const scheduleResponse = await getSchedulesByDateRange(startDate, endDate);
-      
-      if (scheduleResponse?.code === 1) {
-        const scheduleList = scheduleResponse.data || [];
+      if (searchMode && searchOrderNumber.trim()) {
+        // 搜索模式：根据订单号搜索
+        console.log('🔍 根据订单号搜索行程数据:', searchOrderNumber);
         
-        // 根据viewMode筛选数据
-        let filteredSchedules = scheduleList;
-        if (viewMode !== 'all') {
-          filteredSchedules = scheduleList.filter(item => item.tourType === viewMode);
-        }
+        const searchResponse = await getSchedulesByOrderNumber(searchOrderNumber.trim());
         
-        if (filteredSchedules.length > 0) {
-          console.log(`✅ 找到${filteredSchedules.length}条排团表行程数据`);
-          
-          // 转换为组件需要的格式
-          const formattedData = await formatScheduleDataForDisplay(filteredSchedules);
-          setScheduleData(formattedData);
-          
-          if (formattedData.length === 0) {
-            message.info('排团表数据处理后为空，请检查数据格式');
-          }
+        if (searchResponse?.code === 1) {
+          scheduleList = searchResponse.data || [];
         } else {
-          console.log('📭 排团表中没有找到符合条件的行程数据');
-          message.info(`没有找到${viewMode === 'day_tour' ? '一日游' : (viewMode === 'group_tour' ? '跟团游' : '')}类型的行程数据`);
+          console.error('搜索失败:', searchResponse?.msg);
+          message.error('搜索失败: ' + (searchResponse?.msg || '未知错误'));
           setScheduleData([]);
+          return;
         }
       } else {
-        console.log('⚠️ 排团表API调用失败或返回空数据');
-        message.warning('无法获取排团表数据，请检查后端服务');
+        // 日期范围模式：按日期范围获取数据
+        const startDate = formatDate(dateRange[0]);
+        const endDate = formatDate(dateRange[1]);
+        
+        console.log('🔄 按日期范围获取行程数据:', startDate, '至', endDate);
+        
+        const scheduleResponse = await getSchedulesByDateRange(startDate, endDate);
+        
+        if (scheduleResponse?.code === 1) {
+          scheduleList = scheduleResponse.data || [];
+        } else {
+          console.error('获取数据失败:', scheduleResponse?.msg);
+          message.error('获取数据失败: ' + (scheduleResponse?.msg || '未知错误'));
+          setScheduleData([]);
+          return;
+        }
+      }
+      
+      // 根据viewMode筛选数据
+      let filteredSchedules = scheduleList;
+      if (viewMode !== 'all') {
+        filteredSchedules = scheduleList.filter(item => item.tourType === viewMode);
+      }
+      
+      if (filteredSchedules.length > 0) {
+        console.log(`✅ 找到${filteredSchedules.length}条排团表行程数据`);
+        
+        // 转换为组件需要的格式
+        const formattedData = await formatScheduleDataForDisplay(filteredSchedules);
+        setScheduleData(formattedData);
+        
+        if (formattedData.length === 0) {
+          message.info('排团表数据处理后为空，请检查数据格式');
+        }
+      } else {
+        console.log('📭 排团表中没有找到符合条件的行程数据');
+        message.info(`没有找到${viewMode === 'day_tour' ? '一日游' : (viewMode === 'group_tour' ? '跟团游' : '')}类型的行程数据`);
         setScheduleData([]);
       }
 
@@ -586,6 +613,73 @@ const TourArrangement = () => {
     setViewMode(value);
   };
 
+  // 处理快速搜索（显示弹窗）
+  const handleQuickSearch = async () => {
+    if (!searchKeyword.trim()) {
+      message.warning(`请输入${searchType === 'orderNumber' ? '订单号' : '联系人姓名'}`);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      let response;
+      
+      if (searchType === 'orderNumber') {
+        response = await getSchedulesByOrderNumber(searchKeyword.trim());
+      } else {
+        response = await getSchedulesByContactPerson(searchKeyword.trim());
+      }
+
+      if (response?.code === 1) {
+        const results = response.data || [];
+        setSearchResults(results);
+        setShowSearchModal(true);
+        
+        if (results.length === 0) {
+          message.info(`未找到与"${searchKeyword}"相关的行程安排`);
+        }
+      } else {
+        console.error('搜索失败:', response?.msg);
+        message.error('搜索失败: ' + (response?.msg || '未知错误'));
+      }
+    } catch (error) {
+      console.error('搜索过程中出错:', error);
+      message.error('搜索失败: ' + (error.message || '未知错误'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 处理表格搜索（原有功能，用于表格过滤）
+  const handleTableSearch = () => {
+    if (!searchOrderNumber.trim()) {
+      message.warning('请输入订单号');
+      return;
+    }
+    setSearchMode(true);
+    // fetchScheduleData会通过useEffect自动触发
+  };
+
+  // 清除搜索，回到日期范围模式
+  const handleClearSearch = () => {
+    setSearchMode(false);
+    setSearchOrderNumber('');
+    // fetchScheduleData会通过useEffect自动触发
+  };
+
+  // 处理搜索输入框回车
+  const handleSearchInputKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleQuickSearch();
+    }
+  };
+
+  // 关闭搜索结果弹窗
+  const handleCloseSearchModal = () => {
+    setShowSearchModal(false);
+    setSearchResults([]);
+  };
+
   // 保存行程安排
   const handleSaveArrangement = async (data) => {
     if (!data || !data.updatedData) {
@@ -707,16 +801,79 @@ const TourArrangement = () => {
         title={
           <div style={{ display: 'flex', alignItems: 'center' }}>
             旅游行程安排表
-            <Tooltip title="显示所有订单的行程安排，可根据日期查看不同时间范围的订单">
+            {searchMode && (
+              <span style={{ marginLeft: 12, color: '#1890ff', fontSize: '14px' }}>
+                - 搜索模式: {searchOrderNumber}
+              </span>
+            )}
+            <Tooltip title={searchMode ? "当前为搜索模式，显示指定订单号的行程安排" : "显示所有订单的行程安排，可根据日期查看不同时间范围的订单"}>
               <InfoCircleOutlined style={{ marginLeft: 8, color: '#1890ff' }} />
             </Tooltip>
           </div>
         }
         extra={
           <Space>
+            {/* 快速搜索功能 */}
+            <Space.Compact>
+              <Radio.Group 
+                value={searchType} 
+                onChange={(e) => setSearchType(e.target.value)}
+                size="small"
+                style={{ marginRight: 8 }}
+              >
+                <Radio.Button value="orderNumber">订单号</Radio.Button>
+                <Radio.Button value="contactPerson">联系人</Radio.Button>
+              </Radio.Group>
+              <Input
+                placeholder={searchType === 'orderNumber' ? '输入订单号搜索' : '输入联系人姓名搜索'}
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+                onKeyPress={handleSearchInputKeyPress}
+                style={{ width: 200 }}
+                disabled={loading}
+              />
+              <Button
+                type="primary"
+                icon={<SearchOutlined />}
+                onClick={handleQuickSearch}
+                disabled={loading}
+              >
+                弹窗搜索
+              </Button>
+            </Space.Compact>
+            
+            {/* 表格过滤搜索 */}
+            <Space.Compact>
+              <Input
+                placeholder="订单号表格过滤"
+                value={searchOrderNumber}
+                onChange={(e) => setSearchOrderNumber(e.target.value)}
+                style={{ width: 160 }}
+                disabled={loading}
+              />
+              <Button
+                icon={<SearchOutlined />}
+                onClick={handleTableSearch}
+                disabled={loading}
+              >
+                表格搜索
+              </Button>
+              {searchMode && (
+                <Button
+                  icon={<ClearOutlined />}
+                  onClick={handleClearSearch}
+                  disabled={loading}
+                >
+                  清除
+                </Button>
+              )}
+            </Space.Compact>
+            
+            {/* 日期范围选择器（搜索模式下禁用） */}
             <RangePicker
               value={dateRange && dateRange.length === 2 ? dateRange : null}
               onChange={handleDateChange}
+              disabled={searchMode || loading}
               onOpenChange={(open) => {
                 console.log('DatePicker onOpenChange:', open);
                 
@@ -776,6 +933,7 @@ const TourArrangement = () => {
               style={{ width: 120 }} 
               onChange={handleViewModeChange}
               popupMatchSelectWidth={false}
+              disabled={loading}
             >
               <Option value="all">全部行程</Option>
               <Option value="day_tour">一日游</Option>
@@ -824,14 +982,32 @@ const TourArrangement = () => {
             image={Empty.PRESENTED_IMAGE_SIMPLE} 
           />
         ) : (
-          <TourScheduleTable 
-            data={scheduleData}
-            loading={loading}
-            dateRange={dateRange}
-            onUpdate={handleSaveArrangement}
-          />
+          <>
+            {/* UI图例说明 */}
+            <UILegend />
+            
+            {/* 颜色图例 */}
+            <ColorLegend scheduleData={scheduleData} />
+            
+            {/* 排团表格 */}
+            <TourScheduleTable 
+              data={scheduleData}
+              loading={loading}
+              dateRange={dateRange}
+              onUpdate={handleSaveArrangement}
+            />
+          </>
         )}
       </Card>
+
+      {/* 搜索结果弹窗 */}
+      <SearchResultModal
+        visible={showSearchModal}
+        onCancel={handleCloseSearchModal}
+        searchResults={searchResults}
+        searchType={searchType}
+        searchKeyword={searchKeyword}
+      />
     </div>
   );
 };
