@@ -68,6 +68,11 @@ const SessionManagement = () => {
   const [waitingQueue, setWaitingQueue] = useState([]);
 
   useEffect(() => {
+    console.log('🚀 SessionManagement useEffect触发');
+    console.log('📊 当前pagination:', pagination);  
+    console.log('🔍 当前filters:', filters);
+    console.log('🔧 URL中的serviceId:', filterServiceId);
+    
     fetchSessionList();
     fetchStatistics();
     fetchWaitingQueue();
@@ -85,6 +90,10 @@ const SessionManagement = () => {
         endDate: filters.dateRange?.[1]?.format('YYYY-MM-DD')
       };
 
+      console.log('📋 会话列表API请求参数:', params);
+      console.log('🔍 当前filters状态:', filters);
+      console.log('📊 当前pagination状态:', pagination);
+      
       const response = await serviceSessionApi.getSessionList(params);
       console.log('🔍 会话列表API响应:', response);
       
@@ -577,6 +586,15 @@ const SessionManagement = () => {
               </Button>
               <Button icon={<ExportOutlined />}>
                 导出
+              </Button>
+              <Button 
+                type="dashed" 
+                onClick={() => {
+                  console.log('🔧 手动调试API调用');
+                  fetchSessionList();
+                }}
+              >
+                调试API
               </Button>
             </Space>
           </Col>
