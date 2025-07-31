@@ -1,0 +1,93 @@
+.avatar-upload-container {
+  text-align: center;
+}
+
+.avatar-uploader {
+  display: inline-block;
+}
+
+.avatar-uploader .ant-upload {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 1px dashed #d9d9d9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.avatar-uploader .ant-upload:hover {
+  border-color: #1890ff;
+}
+
+.avatar-preview {
+  position: relative;
+  display: inline-block;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.avatar-upload-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  opacity: 0;
+  transition: opacity 0.3s;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.avatar-preview:hover .avatar-upload-overlay {
+  opacity: 1;
+}
+
+.avatar-upload-content {
+  color: #666;
+  font-size: 12px;
+}
+
+.avatar-upload-tips {
+  margin-top: 12px;
+  color: #666;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.avatar-upload-tips p {
+  margin: 2px 0;
+}
+
+/* 不同尺寸的头像上传器 */
+.avatar-uploader.size-50 .ant-upload {
+  width: 50px;
+  height: 50px;
+}
+
+.avatar-uploader.size-80 .ant-upload {
+  width: 80px;
+  height: 80px;
+}
+
+.avatar-uploader.size-120 .ant-upload {
+  width: 120px;
+  height: 120px;
+}
+
+.avatar-uploader.size-150 .ant-upload {
+  width: 150px;
+  height: 150px;
+}
+
+/* 加载状态 */
+.avatar-uploader .ant-spin {
+  color: #1890ff;
+}

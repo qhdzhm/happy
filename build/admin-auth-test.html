@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台认证测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        input { padding: 8px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🔧 管理后台Cookie认证测试</h1>
+    
+    <div class="section">
+        <h3>管理员登录</h3>
+        <input type="text" id="username" placeholder="用户名" value="admin">
+        <input type="password" id="password" placeholder="密码" value="123456">
+        <br>
+        <button onclick="adminLogin()">登录</button>
+        <button onclick="adminLogout()">登出</button>
+        <div id="loginResult"></div>
+    </div>
+
+    <div class="section">
+        <h3>认证状态检查</h3>
+        <button onclick="checkAuthStatus()">检查状态</button>
+        <button onclick="showCookies()">显示Cookie</button>
+        <div id="statusResult"></div>
+    </div>
+
+    <div class="section">
+        <h3>API测试</h3>
+        <button onclick="testAPI()">测试员工列表API</button>
+        <div id="apiResult"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080';
+
+        async function adminLogin() {
+            const result = document.getElementById('loginResult');
+            result.innerHTML = '<div class="info">登录中...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/employee/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        username: document.getElementById('username').value,
+                        password: document.getElementById('password').value
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.code === 1) {
+                    result.innerHTML = `<div class="success">✅ 登录成功！用户：${data.data.userName}</div>`;
+                } else {
+                    result.innerHTML = `<div class="error">❌ 登录失败：${data.msg}</div>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="error">❌ 请求失败：${error.message}</div>`;
+            }
+        }
+
+        async function adminLogout() {
+            const result = document.getElementById('loginResult');
+            result.innerHTML = '<div class="info">登出中...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/employee/logout`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                
+                if (data.code === 1) {
+                    result.innerHTML = '<div class="success">✅ 登出成功！</div>';
+                } else {
+                    result.innerHTML = `<div class="error">❌ 登出失败：${data.msg}</div>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="error">❌ 请求失败：${error.message}</div>`;
+            }
+        }
+
+        function checkAuthStatus() {
+            const result = document.getElementById('statusResult');
+            
+            // 检查管理后台Cookie
+            const adminCookies = [];
+            document.cookie.split(';').forEach(cookie => {
+                const [name, value] = cookie.trim().split('=');
+                if (name && name.includes('admin')) {
+                    adminCookies.push(`${name}: ${value ? value.substring(0, 20) + '...' : '空'}`);
+                }
+            });
+            
+            // 检查localStorage
+            const adminStorage = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('admin_')) {
+                    const value = localStorage.getItem(key);
+                    adminStorage.push(`${key}: ${value ? value.substring(0, 20) + '...' : '空'}`);
+                }
+            }
+            
+            let html = '<h4>认证状态：</h4>';
+            
+            if (adminCookies.length > 0) {
+                html += '<div class="success">✅ 找到管理后台Cookie：</div>';
+                adminCookies.forEach(cookie => {
+                    html += `<div>- ${cookie}</div>`;
+                });
+            } else {
+                html += '<div class="error">❌ 未找到管理后台Cookie</div>';
+            }
+            
+            if (adminStorage.length > 0) {
+                html += '<div class="info">📝 管理后台localStorage：</div>';
+                adminStorage.forEach(item => {
+                    html += `<div>- ${item}</div>`;
+                });
+            } else {
+                html += '<div class="success">✅ localStorage无数据（Cookie-only模式正常）</div>';
+            }
+            
+            result.innerHTML = html;
+        }
+
+        function showCookies() {
+            const result = document.getElementById('statusResult');
+            const cookies = document.cookie.split(';');
+            
+            let html = '<h4>所有Cookie：</h4>';
+            cookies.forEach(cookie => {
+                const [name, value] = cookie.trim().split('=');
+                if (name) {
+                    const isAdmin = name.includes('admin');
+                    const color = isAdmin ? 'color: blue' : 'color: gray';
+                    const displayValue = value ? (value.length > 30 ? value.substring(0, 30) + '...' : value) : '空';
+                    html += `<div style="${color}">- ${name}: ${displayValue}</div>`;
+                }
+            });
+            
+            result.innerHTML = html;
+        }
+
+        async function testAPI() {
+            const result = document.getElementById('apiResult');
+            result.innerHTML = '<div class="info">测试API中...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/employee/page?page=1&pageSize=5`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                if (response.status === 401) {
+                    result.innerHTML = '<div class="error">❌ 401未授权：请先登录</div>';
+                    return;
+                }
+
+                const data = await response.json();
+                
+                if (data.code === 1) {
+                    result.innerHTML = `
+                        <div class="success">✅ API调用成功！</div>
+                        <div>总员工数：${data.data.total}</div>
+                        <div>Cookie认证工作正常</div>
+                    `;
+                } else {
+                    result.innerHTML = `<div class="error">❌ API失败：${data.msg}</div>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="error">❌ 请求失败：${error.message}</div>`;
+            }
+        }
+
+        // 页面加载时检查状态
+        window.onload = checkAuthStatus;
+    </script>
+</body>
+</html> 

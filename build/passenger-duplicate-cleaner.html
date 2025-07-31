@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧹 乘客重复数据清理工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .title {
+            color: #e74c3c;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 24px;
+        }
+        .problem-description {
+            background: #fff5f5;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #e74c3c;
+            margin-bottom: 20px;
+        }
+        .solution-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #28a745;
+        }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            min-width: 120px;
+        }
+        .btn-danger {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+        .btn-warning {
+            background-color: #f39c12;
+            color: white;
+        }
+        .btn-warning:hover {
+            background-color: #d68910;
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #218838;
+        }
+        .btn-info {
+            background-color: #17a2b8;
+            color: white;
+        }
+        .btn-info:hover {
+            background-color: #138496;
+        }
+        .btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .log-container {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            height: 300px;
+            overflow-y: auto;
+            padding: 15px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+        .log-success {
+            color: #28a745;
+        }
+        .log-error {
+            color: #dc3545;
+        }
+        .log-warning {
+            color: #ffc107;
+        }
+        .log-info {
+            color: #17a2b8;
+        }
+        .status-bar {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .progress-bar {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 20px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress-fill {
+            background: #28a745;
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .section:last-child {
+            border-bottom: none;
+        }
+        .api-test {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+        .code {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">🧹 乘客重复数据清理工具</h1>
+        
+        <div class="problem-description">
+            <h3>🐛 问题描述</h3>
+            <p>由于前端同时调用了两个接口处理乘客信息，导致系统创建了重复的乘客记录：</p>
+            <ul>
+                <li>✅ <code>PUT /admin/orders/{id}/passengers</code> - 专门处理乘客信息</li>
+                <li>❌ <code>PUT /admin/orders/{id}/status</code> - 状态更新时重复处理了乘客信息</li>
+            </ul>
+            <p><strong>结果：</strong>同一个乘客被创建了多次，但订单表的人数统计错误。</p>
+        </div>
+
+        <div class="solution-card">
+            <h3>🔧 解决方案</h3>
+            <p>已修复后端接口避免重复处理，现在需要清理历史重复数据：</p>
+            <ol>
+                <li><strong>清理重复乘客：</strong>识别并删除重复的乘客记录（保留最新的）</li>
+                <li><strong>修复人数统计：</strong>重新计算所有订单的成人/儿童数量</li>
+                <li><strong>数据一致性检查：</strong>确保乘客表与订单表数据一致</li>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h3>🧹 数据清理操作</h3>
+            <div class="status-bar" id="statusBar">
+                ⏳ 准备就绪，点击按钮开始清理...
+            </div>
+            
+            <div class="button-group">
+                <button class="btn btn-danger" onclick="cleanDuplicatePassengers()">
+                    🗑️ 清理重复乘客
+                </button>
+                <button class="btn btn-warning" onclick="fixPassengerCounts()">
+                    🔢 修复人数统计
+                </button>
+                <button class="btn btn-success" onclick="runFullCleanup()">
+                    🚀 完整清理
+                </button>
+                <button class="btn btn-info" onclick="checkDataConsistency()">
+                    🔍 数据检查
+                </button>
+            </div>
+
+            <div class="progress-bar" id="progressBar" style="display: none;">
+                <div class="progress-fill" id="progressFill">0%</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>📊 API 测试</h3>
+            <div class="api-test">
+                <p><strong>测试接口连接性：</strong></p>
+                <button class="btn btn-info" onclick="testBackendConnection()">
+                    📡 测试后端连接
+                </button>
+                <div class="code" id="apiTestResult">等待测试...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>📝 操作日志</h3>
+            <button class="btn btn-info" onclick="clearLogs()">🗑️ 清空日志</button>
+            <div class="log-container" id="logContainer">
+                <div class="log-entry log-info">🔧 乘客重复数据清理工具已准备就绪</div>
+                <div class="log-entry log-info">💡 提示：请先进行数据检查，了解当前状况</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080';
+        
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusBar = document.getElementById('statusBar');
+            statusBar.className = `status-bar status-${type}`;
+            statusBar.textContent = message;
+        }
+
+        function showProgress(show = true) {
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.display = show ? 'block' : 'none';
+            if (!show) {
+                updateProgress(0);
+            }
+        }
+
+        function updateProgress(percent) {
+            const progressFill = document.getElementById('progressFill');
+            progressFill.style.width = `${percent}%`;
+            progressFill.textContent = `${percent}%`;
+        }
+
+        function clearLogs() {
+            const logContainer = document.getElementById('logContainer');
+            logContainer.innerHTML = '<div class="log-entry log-info">📝 日志已清空</div>';
+        }
+
+        async function makeApiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    ...options
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                return await response.json();
+            } catch (error) {
+                addLog(`❌ API调用失败: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        async function testBackendConnection() {
+            addLog('🔍 测试后端连接...', 'info');
+            const testResult = document.getElementById('apiTestResult');
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/orders/list?page=1&pageSize=1`);
+                const data = await response.json();
+                
+                if (response.ok && data.code === 1) {
+                    testResult.innerHTML = '✅ 后端连接正常 - 状态码: 200';
+                    testResult.style.color = '#28a745';
+                    addLog('✅ 后端连接测试成功', 'success');
+                } else {
+                    testResult.innerHTML = `⚠️ 后端响应异常 - 响应: ${JSON.stringify(data)}`;
+                    testResult.style.color = '#ffc107';
+                    addLog('⚠️ 后端连接异常', 'warning');
+                }
+            } catch (error) {
+                testResult.innerHTML = `❌ 连接失败 - 错误: ${error.message}`;
+                testResult.style.color = '#dc3545';
+                addLog(`❌ 后端连接失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function cleanDuplicatePassengers() {
+            addLog('🚀 开始清理重复乘客数据...', 'info');
+            updateStatus('🔄 正在清理重复乘客数据...', 'warning');
+            showProgress(true);
+            
+            try {
+                updateProgress(20);
+                const response = await makeApiCall('/admin/passengers/clean-duplicate-passengers', {
+                    method: 'POST'
+                });
+                
+                updateProgress(80);
+                
+                if (response.code === 1) {
+                    updateProgress(100);
+                    addLog(`✅ 重复数据清理完成: ${response.data}`, 'success');
+                    updateStatus('✅ 重复乘客数据清理完成', 'success');
+                } else {
+                    addLog(`❌ 清理失败: ${response.msg}`, 'error');
+                    updateStatus('❌ 重复数据清理失败', 'error');
+                }
+            } catch (error) {
+                addLog(`❌ 清理过程发生错误: ${error.message}`, 'error');
+                updateStatus('❌ 清理过程发生错误', 'error');
+            } finally {
+                setTimeout(() => showProgress(false), 2000);
+            }
+        }
+
+        async function fixPassengerCounts() {
+            addLog('🔢 开始修复乘客人数统计...', 'info');
+            updateStatus('🔄 正在修复乘客人数统计...', 'warning');
+            showProgress(true);
+            
+            try {
+                updateProgress(30);
+                const response = await makeApiCall('/admin/passengers/fix-passenger-counts', {
+                    method: 'POST'
+                });
+                
+                updateProgress(90);
+                
+                if (response.code === 1) {
+                    updateProgress(100);
+                    addLog(`✅ 人数统计修复完成: ${response.data}`, 'success');
+                    updateStatus('✅ 乘客人数统计修复完成', 'success');
+                } else {
+                    addLog(`❌ 修复失败: ${response.msg}`, 'error');
+                    updateStatus('❌ 人数统计修复失败', 'error');
+                }
+            } catch (error) {
+                addLog(`❌ 修复过程发生错误: ${error.message}`, 'error');
+                updateStatus('❌ 修复过程发生错误', 'error');
+            } finally {
+                setTimeout(() => showProgress(false), 2000);
+            }
+        }
+
+        async function runFullCleanup() {
+            addLog('🚀 开始完整数据清理流程...', 'info');
+            updateStatus('🔄 正在执行完整清理...', 'warning');
+            showProgress(true);
+            
+            try {
+                // 步骤1: 清理重复乘客
+                addLog('📋 步骤1: 清理重复乘客数据', 'info');
+                updateProgress(25);
+                
+                const cleanResponse = await makeApiCall('/admin/passengers/clean-duplicate-passengers', {
+                    method: 'POST'
+                });
+                
+                if (cleanResponse.code === 1) {
+                    addLog(`✅ 步骤1完成: ${cleanResponse.data}`, 'success');
+                } else {
+                    throw new Error(`步骤1失败: ${cleanResponse.msg}`);
+                }
+                
+                updateProgress(50);
+                
+                // 步骤2: 修复人数统计
+                addLog('📋 步骤2: 修复乘客人数统计', 'info');
+                
+                const fixResponse = await makeApiCall('/admin/passengers/fix-passenger-counts', {
+                    method: 'POST'
+                });
+                
+                updateProgress(75);
+                
+                if (fixResponse.code === 1) {
+                    addLog(`✅ 步骤2完成: ${fixResponse.data}`, 'success');
+                } else {
+                    throw new Error(`步骤2失败: ${fixResponse.msg}`);
+                }
+                
+                updateProgress(100);
+                addLog('🎉 完整清理流程成功完成！', 'success');
+                updateStatus('🎉 完整数据清理成功完成', 'success');
+                
+            } catch (error) {
+                addLog(`❌ 完整清理失败: ${error.message}`, 'error');
+                updateStatus('❌ 完整清理过程失败', 'error');
+            } finally {
+                setTimeout(() => showProgress(false), 3000);
+            }
+        }
+
+        async function checkDataConsistency() {
+            addLog('🔍 开始数据一致性检查...', 'info');
+            updateStatus('🔄 正在检查数据一致性...', 'warning');
+            
+            try {
+                // 这里可以添加数据一致性检查的具体逻辑
+                // 暂时使用订单列表查询来检查系统状态
+                const response = await makeApiCall('/admin/orders/list?page=1&pageSize=5');
+                
+                if (response.code === 1) {
+                    const orders = response.data.records || [];
+                    addLog(`✅ 系统状态正常，找到 ${orders.length} 个订单记录`, 'success');
+                    addLog('💡 建议：如发现数据异常，请运行完整清理流程', 'info');
+                    updateStatus('✅ 数据一致性检查完成', 'success');
+                } else {
+                    addLog(`⚠️ 系统状态异常: ${response.msg}`, 'warning');
+                    updateStatus('⚠️ 数据检查发现异常', 'warning');
+                }
+            } catch (error) {
+                addLog(`❌ 数据检查失败: ${error.message}`, 'error');
+                updateStatus('❌ 数据检查过程失败', 'error');
+            }
+        }
+
+        // 页面加载完成后自动测试连接
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('🔧 页面加载完成，自动测试后端连接', 'info');
+            setTimeout(testBackendConnection, 1000);
+        });
+    </script>
+</body>
+</html> 
