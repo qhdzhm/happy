@@ -307,13 +307,69 @@ const TourItinerary = () => {
           const scheduleTitle = schedule.title || '';
           const scheduleLocation = schedule.location || schedule.destinationName || '';
           
-          // 多种匹配方式：
-          // 1. 标题中包含地点名称
-          // 2. location字段匹配
-          // 3. destinationName字段匹配
-          return scheduleTitle.includes(selectedLocation) || 
-                 scheduleLocation === selectedLocation ||
-                 scheduleLocation.includes(selectedLocation);
+          // 智能地点匹配逻辑
+          const matchLocation = (title, location) => {
+            // 1. 精确匹配
+            if (title.includes(selectedLocation) || location === selectedLocation || location.includes(selectedLocation)) {
+              return true;
+            }
+            
+            // 2. 智能地点映射匹配
+            const locationMappings = {
+              '酒(徒步)': ['酒杯湾', '酒杯'],
+              '酒': ['酒杯湾', '酒杯'],
+              '亚(迅)': ['亚瑟港', '亚瑟'],
+              '亚(不)': ['亚瑟港', '亚瑟'],
+              '亚': ['亚瑟港', '亚瑟'],
+              '布': ['布鲁尼', '布鲁尼岛'],
+              '霍': ['霍巴特', 'Hobart'],
+              '玛': ['玛丽亚岛', '玛丽亚'],
+              '摇': ['摇篮山'],
+              '朗': ['朗塞斯顿'],
+              '菲': ['菲欣纳', '菲欣纳国家公园'],
+              '塔': ['塔斯曼半岛'],
+              '德': ['德文波特'],
+              '比': ['比奇诺'],
+              '斯': ['斯旺西'],
+              '里': ['里奇蒙'],
+              '惠': ['惠灵顿山'],
+              '萨': ['萨拉曼卡']
+            };
+            
+            // 3. 处理复合地点名称（如"玛丽亚岛+酒杯湾"）
+            const compositePatterns = ['+', '、', '，', '-', '&'];
+            const isSelectedComposite = compositePatterns.some(separator => 
+              selectedLocation.includes(separator)
+            );
+            
+            if (isSelectedComposite) {
+              // 分解复合地点名称
+              const locationParts = selectedLocation.split(/[+、，\-&]\s*/).filter(part => part.trim());
+              console.log('复合地点分解:', locationParts);
+              
+              // 检查标题是否匹配任何一个组成部分
+              return locationParts.some(part => {
+                // 先尝试直接匹配
+                if (title.includes(part) || location.includes(part)) {
+                  return true;
+                }
+                
+                // 再尝试映射匹配
+                const mappedLocations = locationMappings[part] || [];
+                return mappedLocations.some(mapped => 
+                  title.includes(mapped) || location.includes(mapped)
+                );
+              });
+            }
+            
+            // 4. 单一地点映射匹配
+            const mappedLocations = locationMappings[selectedLocation] || [];
+            return mappedLocations.some(mapped => 
+              title.includes(mapped) || location.includes(mapped)
+            );
+          };
+          
+          return matchLocation(scheduleTitle, scheduleLocation);
         });
         
         console.log('筛选后的地点行程数据:', locationSchedules);
@@ -450,7 +506,22 @@ const TourItinerary = () => {
         const basicData = [{
           key: 1,
           suggestedTime: '待确认',
-          orderNumber: '分配已确认',
+          orderNumber: (() => {
+            // 优先使用真实订单号
+            if (assignment.realOrderNumbers) {
+              return assignment.realOrderNumbers.split(',')[0]; // 取第一个订单号
+            }
+            // 备用方案：使用 tour_schedule_order_ids
+            if (assignment.tourScheduleOrderIds && assignment.tourScheduleOrderIds.length > 0) {
+              const scheduleOrderId = assignment.tourScheduleOrderIds[0];
+              return `TSO-${scheduleOrderId}`;
+            }
+            // 最后备用方案：使用 booking_ids
+            if (assignment.bookingIds && assignment.bookingIds.length > 0) {
+              return `ORD-${assignment.bookingIds[0]}`;
+            }
+            return '分配已确认';
+          })(),
           customerName: assignment.contactPerson || '待更新',
           totalPeople: assignment.totalPeople || 0,
           contactInfo: assignment.contactPhone || '待更新',
