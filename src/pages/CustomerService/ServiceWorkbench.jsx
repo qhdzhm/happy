@@ -92,11 +92,12 @@ const ServiceWorkbench = () => {
     
     try {
       // 加载会话消息
-      console.log('📱 开始加载会话 {} 的消息', session.id);
+      console.log('📱 开始加载会话', session.id, '的消息');
       const result = await serviceSessionApi.getSessionMessages(session.id);
       console.log('📥 会话消息加载结果:', result);
       
-      const messages = result.data?.messages || result.data || [];
+      // 修复：result.data 直接就是消息数组
+      const messages = result.data || [];
       console.log('📝 解析出的消息数组:', messages);
       
       setMessages(messages);
@@ -403,8 +404,48 @@ const ServiceWorkbench = () => {
             localStorage.removeItem('currentSessionId');
           }
           break;
+
+        case 'system_notification':
+          // 系统通知（包括新的客服请求）
+          console.log('🔔 收到系统通知:', data);
+          const notificationData = data.data || data;
+          
+          // 检查是否是客服请求通知
+          if (data.title === '客服请求' || notificationData.type === 1) {
+            console.log('🆕 收到新的客服请求通知，刷新工作台数据');
+            
+            // 自动刷新工作台数据
+            if (serviceInfo?.id) {
+              loadWorkbenchData(serviceInfo.id);
+            } else {
+              console.error('❌ 无法获取服务ID，无法刷新工作台数据');
+            }
+            
+            // 显示提示消息
+            message.info({
+              content: '有新的用户请求客服支持',
+              duration: 3,
+              style: {
+                marginTop: '10vh'
+              }
+            });
+            
+            // 播放提示音
+            try {
+              const audio = new Audio('/notification.mp3');
+              audio.volume = 0.3;
+              audio.play().catch(e => console.log('播放提示音失败:', e));
+            } catch (e) {
+              console.log('创建音频失败:', e);
+            }
+            
+            // 页面标题闪烁提醒
+            flashTitle('🔔 有新的客服请求');
+          }
+          break;
           
         default:
+          console.log('🤷 未处理的WebSocket消息类型:', data.type);
           break;
       }
     };
@@ -414,7 +455,7 @@ const ServiceWorkbench = () => {
     return () => {
       adminWebSocketService.off('message', handleMessage);
     };
-  }, [currentSession, selectSession, flashTitle]);
+  }, [currentSession, selectSession, flashTitle, loadWorkbenchData, serviceInfo]);
 
   // 滚动到消息底部
   useEffect(() => {

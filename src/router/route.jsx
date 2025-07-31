@@ -26,6 +26,7 @@ import TransactionListPage from "@/pages/Credit/TransactionList";
 import OrderList from "@/pages/orders/OrderList";
 import OrderDetail from "@/pages/orders/OrderDetail";
 import OrderEdit from "@/pages/orders/OrderEdit";
+import OrderConfirm from "@/pages/orders/OrderConfirm";
 
 // 导入行程安排组件
 import TourArrangement from "@/pages/TourArrangement";
@@ -44,11 +45,15 @@ import TourAssignment from "@/pages/TourAssignment";
 // 导入折扣管理组件
 import DiscountManagement from "@/pages/DiscountManagement/DiscountManagement";
 
+// 导入个人信息管理组件
+import AdminProfile from "@/pages/Profile/AdminProfile";
+
 // 导入酒店预订管理组件
 import HotelBookingList from "@/pages/HotelBooking/HotelBookingList";
 import HotelBookingDetail from "@/pages/HotelBooking/HotelBookingDetail";
 import HotelBookingForm from "@/pages/HotelBooking/HotelBookingForm";
 import HotelManagement from "@/pages/HotelBooking/HotelManagement";
+import HotelCustomerStatistics from "@/pages/HotelBooking/HotelCustomerStatistics";
 
 const router = createBrowserRouter([
   {
@@ -79,44 +84,27 @@ const router = createBrowserRouter([
           group: "core"
         }
       },
-      
-      // 订单与预订管理模块
       {
-        path: "/orders",
-        element: <OrderList />,
+        path: "/profile",
+        element: <AdminProfile />,
         meta: {
-          title: "订单列表",
-          icon: "UnorderedListOutlined",
-          group: "order-management",
-          groupTitle: "订单预订",
-          groupIcon: "OrderedListOutlined"
+          title: "个人信息",
+          icon: "UserOutlined",
+          group: "core",
+          hidden: true // 不在侧边栏显示，只能通过头部下拉菜单访问
         }
       },
+      
+      // 酒店预订管理模块
       {
         path: "/hotel-bookings",
         element: <HotelBookingList />,
         meta: {
           title: "酒店预订管理",
           icon: "HomeOutlined",
-          group: "order-management",
-          groupTitle: "订单预订",
-          groupIcon: "OrderedListOutlined"
-        }
-      },
-      {
-        path: "/orders/detail/:bookingId",
-        element: <OrderDetail />,
-        meta: {
-          title: "订单详情",
-          hidden: true
-        }
-      },
-      {
-        path: "/orders/edit/:bookingId",
-        element: <OrderEdit />,
-        meta: {
-          title: "编辑订单",
-          hidden: true
+          group: "operation-management",
+          groupTitle: "运营管理",
+          groupIcon: "ControlOutlined"
         }
       },
       {
@@ -141,6 +129,15 @@ const router = createBrowserRouter([
         meta: {
           title: "编辑预订",
           hidden: true
+        }
+      },
+      {
+        path: "/hotel-customer-statistics",
+        element: <HotelCustomerStatistics />,
+        meta: {
+          title: "酒店客人统计",
+          icon: "BarChartOutlined",
+          group: "operation-management"
         }
       },
       
@@ -173,9 +170,9 @@ const router = createBrowserRouter([
         meta: {
           title: "酒店管理",
           icon: "BankOutlined",
-          group: "product-management",
-          groupTitle: "产品管理",
-          groupIcon: "AppstoreOutlined"
+          group: "operation-management",
+          groupTitle: "运营管理",
+          groupIcon: "ControlOutlined"
         }
       },
       {
@@ -223,6 +220,43 @@ const router = createBrowserRouter([
         element: <GroupTourDetail />,
         meta: {
           title: "编辑团队游",
+          hidden: true
+        }
+      },
+      
+      // 订单管理模块
+      {
+        path: "/orders",
+        element: <OrderList />,
+        meta: {
+          title: "订单管理",
+          icon: "ShoppingCartOutlined",
+          group: "order-management",
+          groupTitle: "订单管理",
+          groupIcon: "ShoppingOutlined"
+        }
+      },
+      {
+        path: "/orders/detail/:bookingId",
+        element: <OrderDetail />,
+        meta: {
+          title: "订单详情",
+          hidden: true
+        }
+      },
+      {
+        path: "/orders/edit/:bookingId",
+        element: <OrderEdit />,
+        meta: {
+          title: "编辑订单",
+          hidden: true
+        }
+      },
+      {
+        path: "/orders/confirm/:bookingId",
+        element: <OrderConfirm />,
+        meta: {
+          title: "确认订单",
           hidden: true
         }
       },

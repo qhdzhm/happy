@@ -6,7 +6,8 @@ import {
 } from 'antd';
 import {
   getOrderById, confirmOrder, 
-  cancelOrder, completeOrder, updateOrder
+  cancelOrder, completeOrder, updateOrder,
+  sendConfirmationEmail
 } from '../../apis/orderApi';
 import { formatDateValue } from '../../utils/dateTimeFormat';
 import OrderStatusUpdate from './OrderStatusUpdate';
@@ -41,6 +42,7 @@ const OrderDetail = () => {
     paymentStatus: '',
     remark: ''
   });
+  const [sendingConfirmation, setSendingConfirmation] = useState(false);
 
   // 初始加载
   useEffect(() => {
@@ -159,6 +161,24 @@ const OrderDetail = () => {
     } catch (error) {
       console.error('更新支付状态出错:', error);
       message.error('支付状态更新失败');
+    }
+  };
+
+  // 发送确认单
+  const sendConfirmation = async () => {
+    try {
+      setSendingConfirmation(true);
+      const response = await sendConfirmationEmail(bookingId);
+      if (response.code === 1) {
+        message.success('确认单已发送');
+      } else {
+        message.error(response.msg || '发送确认单失败');
+      }
+    } catch (error) {
+      console.error('发送确认单出错:', error);
+      message.error('发送确认单失败');
+    } finally {
+      setSendingConfirmation(false);
     }
   };
 
@@ -484,6 +504,11 @@ const OrderDetail = () => {
               <Button onClick={handlePrint}>
                 打印订单
               </Button>
+              {isConfirmed && (
+                <Button type="primary" onClick={sendConfirmation} loading={sendingConfirmation}>
+                  发送确认单
+                </Button>
+              )}
             </Space>
           </Col>
         </Row>

@@ -105,7 +105,7 @@ const NotificationCenter = () => {
       switch (type) {
         case 1: // 新订单
           if (relatedId) {
-            navigate(`/orders/detail/${relatedId}`);
+            navigate(`/orders/confirm/${relatedId}`); // 跳转到确认订单页面
           } else {
             navigate('/orders');
           }
@@ -121,7 +121,7 @@ const NotificationCenter = () => {
           
         case 3: // 订单修改
           if (relatedId) {
-            navigate(`/orders/detail/${relatedId}`);
+            navigate(`/orders/confirm/${relatedId}`); // 跳转到确认订单页面
           } else {
             navigate('/orders');
           }

@@ -35,6 +35,14 @@ export const getHotelBookingByScheduleOrderId = (scheduleOrderId) => {
   })
 }
 
+// 根据旅游订单ID获取所有酒店预订（多酒店支持）
+export const getHotelBookingsByTourBookingId = (tourBookingId) => {
+  return request({
+    url: `/admin/hotel-bookings/tour-booking/${tourBookingId}`,
+    method: 'get'
+  })
+}
+
 // 新增酒店预订
 export const addHotelBooking = (data) => {
   return request({

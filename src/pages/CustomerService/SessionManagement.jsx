@@ -188,8 +188,12 @@ const SessionManagement = () => {
     
     try {
       const response = await serviceSessionApi.getSessionMessages(session.id);
-      setSessionMessages(response.data?.messages || []);
+      console.log('🔍 获取会话消息响应:', response);
+      console.log('📝 消息数据:', response.data);
+      // 修复：response.data 直接就是消息数组，不需要 .messages
+      setSessionMessages(response.data || []);
     } catch (error) {
+      console.error('❌ 获取会话消息失败:', error);
       message.error('获取会话消息失败：' + error.message);
     }
   };

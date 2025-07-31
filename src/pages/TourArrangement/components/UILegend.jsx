@@ -53,9 +53,9 @@ const UILegend = () => {
                 style={{
                   width: 60,
                   height: 30,
-                  border: '2px dashed #52c41a',
+                  border: '2px dashed #1890ff',
                   borderRadius: '6px',
-                  backgroundColor: '#f6ffed',
+                  backgroundColor: '#f0f9ff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -65,27 +65,6 @@ const UILegend = () => {
                 行程
               </div>
               <Text style={{ fontSize: '12px' }}>有酒店预订（虚线边框）</Text>
-            </div>
-            
-            {/* 粗边框加阴影 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div
-                style={{
-                  width: 60,
-                  height: 30,
-                  border: '3px solid #f5222d',
-                  borderRadius: '8px',
-                  backgroundColor: '#fff2f0',
-                  boxShadow: '0 0 8px #f5222d40, inset 0 0 8px #f5222d20',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '10px'
-                }}
-              >
-                行程
-              </div>
-              <Text style={{ fontSize: '12px' }}>酒店预订已确认（粗边框+阴影）</Text>
             </div>
           </Space>
         </Col>
@@ -205,9 +184,9 @@ const UILegend = () => {
         <Text type="secondary" style={{ fontSize: '11px' }}>
           💡 提示：
           <br />
-          • <strong>边框颜色</strong>：每个订单组有自己的颜色（蓝色、绿色、红色等），相同颜色属于同一个订单
+          • <strong>边框颜色</strong>：订单边框统一使用蓝色，行程地点根据地点自动生成颜色（如：霍巴特=青色，朗塞斯顿=紫色）
           <br />
-          • <strong>边框样式</strong>：实线=无酒店预订，虚线=有酒店预订待确认，粗边框+阴影=酒店预订已确认  
+          • <strong>边框样式</strong>：实线=无酒店预订，虚线=有酒店预订
           <br />
           • <strong>角标位置</strong>：显示在行程框的右上角，表示酒店预订状态
         </Text>

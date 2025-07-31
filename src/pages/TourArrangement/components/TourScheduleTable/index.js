@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Empty, Spin, Tooltip, message, Button, Tag, Modal, Popover, Table, Form, Select, Dropdown, Menu, Input } from 'antd';
-import { SaveOutlined, UserOutlined, HomeOutlined, IdcardOutlined, PhoneOutlined, TeamOutlined, EnvironmentOutlined, CalendarOutlined, CreditCardOutlined, CommentOutlined, CarOutlined, UserSwitchOutlined, SettingOutlined, LeftOutlined, RightOutlined, EditOutlined } from '@ant-design/icons';
+import { Empty, Spin, Tooltip, message, Button, Tag, Modal, Popover, Table, Form, Select, Dropdown, Menu, Input, Switch } from 'antd';
+import { SaveOutlined, UserOutlined, HomeOutlined, IdcardOutlined, PhoneOutlined, TeamOutlined, EnvironmentOutlined, CalendarOutlined, CreditCardOutlined, CommentOutlined, CarOutlined, UserSwitchOutlined, SettingOutlined, LeftOutlined, RightOutlined, EditOutlined, ExclamationCircleOutlined, PlusOutlined, MergeCellsOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import moment from 'moment';
@@ -8,14 +8,19 @@ import './index.scss';
 import axios from 'axios';
 import { getEmployeesByPage } from '@/apis/Employee';
 import { getAvailableGuides, getAvailableVehicles, checkAssignmentStatus, getAssignmentByDateAndLocation, cancelAssignment } from '@/api/guideAssignment';
-import { assignGuideAndVehicle, saveSchedule, getSchedulesByBookingId, saveBatchSchedules } from '@/api/tourSchedule';
+import { assignGuideAndVehicle, saveSchedule, getSchedulesByBookingId, saveBatchSchedules, deleteSchedule } from '@/api/tourSchedule';
 import { updateOrder } from '@/apis/orderApi';
 import GuideVehicleAssignModal from '../../../../components/GuideVehicleAssignModal';
 import AssignmentDetailModal from '../../../../components/AssignmentDetailModal';
-import HotelBookingModal from '../HotelBookingModal';
+import AddExtraScheduleModal from '../AddExtraScheduleModal';
+import MultiHotelBookingModal from '../MultiHotelBookingModal';
 import { getHotelBookingByScheduleOrderId } from '@/apis/hotel';
+// 🎨 引入统一的颜色管理工具
+import { getLocationColor, detectSpecialRequests } from '@/utils/colorUtils';
 
-const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
+// 特殊情况检测函数现在从 colorUtils.js 导入
+
+const TourScheduleTable = ({ data, loading, dateRange, onUpdate, onDataRefresh }) => {
   // 🔍 入口数据调试
   console.log('🔍 [TourScheduleTable] 接收到的data:', {
     数据类型: typeof data,
@@ -54,6 +59,164 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [dateLocationStats, setDateLocationStats] = useState([]);
+  const [enableDateModalMerge, setEnableDateModalMerge] = useState(true); // 弹窗中的地点合并开关
+  const [selectedLocations, setSelectedLocations] = useState([]); // 手动选择的地点
+  const [manualMergedStats, setManualMergedStats] = useState([]); // 手动合并后的数据
+  
+  // 弹窗中的地点合并规则配置
+  const dateModalMergeRules = {
+    // 亚瑟港相关地点可以合并
+    '亚瑟港': ['亚瑟港', '亚瑟港(迅)', '亚瑟港(不)', '亚(迅)', '亚(不)', '亚'],
+    // 玛丽亚岛和酒杯湾可以合并（经常一起游览）
+    '玛丽亚岛+酒杯湾': ['玛丽亚岛', '玛', '酒杯湾', '酒', '酒(徒步)', '酒(观景)'],
+    // 布鲁尼岛相关
+    '布鲁尼岛': ['布鲁尼岛', '布'],
+    // 霍巴特相关  
+    '霍巴特': ['霍巴特', '霍'],
+    // 摇篮山相关
+    '摇篮山': ['摇篮山', '摇'],
+    // 朗塞斯顿相关
+    '朗塞斯顿': ['朗塞斯顿', '朗']
+  };
+
+  // 获取地点的合并组
+  const getDateModalMergeGroup = (location) => {
+    for (const [groupName, locations] of Object.entries(dateModalMergeRules)) {
+      if (locations.includes(location)) {
+        return groupName;
+      }
+    }
+    return location; // 如果没有匹配的合并规则，返回原地点
+  };
+
+  // 手动合并选中的地点
+  const handleManualMerge = () => {
+    if (selectedLocations.length < 2) {
+      message.warning('请至少选择2个地点进行合并');
+      return;
+    }
+
+    // 获取选中的地点数据
+    const selectedStats = dateLocationStats.filter(stat => 
+      selectedLocations.includes(stat.location)
+    );
+
+    // 创建合并记录
+    const mergedStat = {
+      location: selectedStats.map(s => s.location).join(' + '),
+      count: selectedStats.reduce((sum, s) => sum + (s.count || 0), 0),
+      totalPax: selectedStats.reduce((sum, s) => sum + (s.totalPax || 0), 0),
+      tourGroupIds: selectedStats.flatMap(s => s.tourGroupIds || []),
+      mergedLocations: selectedStats.map(s => s.location),
+      originalStats: selectedStats,
+      isMerged: true,
+      isManualMerged: true,
+      // 分配状态：如果有任何一个已分配，就显示已分配
+      isAssigned: selectedStats.some(s => s.isAssigned),
+      // 合并导游信息（去重）
+      guideInfo: [...new Set(selectedStats.map(s => s.guideInfo).filter(info => info))].join(', '),
+      // 合并车辆信息（去重）
+      vehicleInfo: [...new Set(selectedStats.map(s => s.vehicleInfo).filter(info => info))].join(', ')
+    };
+
+    // 更新手动合并数据
+    const unselectedStats = dateLocationStats.filter(stat => 
+      !selectedLocations.includes(stat.location)
+    );
+    
+    setManualMergedStats([...unselectedStats, mergedStat]);
+    setSelectedLocations([]);
+    
+    console.log(`📋 手动合并完成: ${selectedStats.map(s => s.location).join(' + ')}`, {
+      合并地点数: selectedStats.length,
+      合并后团队数: mergedStat.count,
+      合并后人数: mergedStat.totalPax
+    });
+    
+    message.success(`已合并 ${selectedStats.length} 个地点`);
+  };
+
+  // 重置手动合并
+  const handleResetManualMerge = () => {
+    setManualMergedStats([]);
+    setSelectedLocations([]);
+    message.success('已重置合并状态');
+  };
+
+  // 获取最终显示的数据
+  const getFinalDisplayStats = () => {
+    // 如果有手动合并的数据，优先显示手动合并的结果
+    if (manualMergedStats.length > 0) {
+      return manualMergedStats;
+    }
+    
+    // 否则根据智能合并开关决定
+    if (enableDateModalMerge) {
+      return mergeDateLocationStats(dateLocationStats);
+    }
+    
+    return dateLocationStats;
+  };
+
+  // 智能合并弹窗中的相似地点
+  const mergeDateLocationStats = (stats) => {
+    if (!stats || stats.length === 0) return stats;
+
+    // 按合并组分类
+    const locationGroups = {};
+    stats.forEach(stat => {
+      const mergeGroup = getDateModalMergeGroup(stat.location);
+      if (!locationGroups[mergeGroup]) {
+        locationGroups[mergeGroup] = [];
+      }
+      locationGroups[mergeGroup].push(stat);
+    });
+
+    const mergedStats = [];
+
+    // 合并每个地点组
+    Object.entries(locationGroups).forEach(([groupName, groupStats]) => {
+      if (groupStats.length === 1) {
+        // 单个地点，直接添加
+        mergedStats.push(groupStats[0]);
+      } else {
+        // 多个地点需要合并
+        const baseStat = groupStats[0];
+        
+        // 合并数据
+        const mergedStat = {
+          ...baseStat,
+          location: groupName,
+          // 合并团队数量
+          count: groupStats.reduce((sum, s) => sum + (s.count || 0), 0),
+          // 合并游客数量
+          totalPax: groupStats.reduce((sum, s) => sum + (s.totalPax || 0), 0),
+          // 合并团队ID
+          tourGroupIds: groupStats.flatMap(s => s.tourGroupIds || []),
+          // 合并具体地点信息（用于显示详情）
+          mergedLocations: groupStats.map(s => s.location),
+          originalStats: groupStats, // 保留原始数据
+          isMerged: true, // 标记为合并记录
+          // 分配状态：如果有任何一个已分配，就显示已分配
+          isAssigned: groupStats.some(s => s.isAssigned),
+          // 合并导游信息（去重）
+          guideInfo: [...new Set(groupStats.map(s => s.guideInfo).filter(info => info))].join(', '),
+          // 合并车辆信息（去重）
+          vehicleInfo: [...new Set(groupStats.map(s => s.vehicleInfo).filter(info => info))].join(', ')
+        };
+
+        console.log(`🔄 弹窗合并地点: ${groupStats.map(s => s.location).join(' + ')} → ${groupName}`, {
+          原始记录数: groupStats.length,
+          合并后团队数: mergedStat.count,
+          合并后人数: mergedStat.totalPax
+        });
+
+        mergedStats.push(mergedStat);
+      }
+    });
+
+    return mergedStats;
+  };
   
   // 导游和车辆分配相关状态
   const [assignModalVisible, setAssignModalVisible] = useState(false);
@@ -76,9 +239,14 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
   const [editForm] = Form.useForm();
   const [currentEditData, setCurrentEditData] = useState(null);
   
-  // 酒店预订弹窗状态
-  const [hotelBookingModalVisible, setHotelBookingModalVisible] = useState(false);
-  const [currentHotelBookingData, setCurrentHotelBookingData] = useState(null);
+
+  
+  // 添加额外行程弹窗状态
+  const [addExtraScheduleModalVisible, setAddExtraScheduleModalVisible] = useState(false);
+  const [currentExtraScheduleOrderInfo, setCurrentExtraScheduleOrderInfo] = useState(null);
+  const [addingExtraSchedule, setAddingExtraSchedule] = useState(false);
+  const [multiHotelModalVisible, setMultiHotelModalVisible] = useState(false);
+  const [currentMultiHotelOrderInfo, setCurrentMultiHotelOrderInfo] = useState(null);
   
   // 横向滚动容器引用
   const scrollContainerRef = useRef(null);
@@ -93,9 +261,51 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
   // Refs for tracking draggable elements
   const dragItemRef = useRef(null);
   const dragNodeRef = useRef(null);
+  
+  // 🆕 特殊要求处理状态管理
+  const [processedSpecialRequests, setProcessedSpecialRequests] = useState(() => {
+    const stored = localStorage.getItem('processedSpecialRequests');
+    return stored ? JSON.parse(stored) : {};
+  });
+
+  // 🆕 保存处理状态到localStorage
+  const saveProcessedState = (newProcessedState) => {
+    localStorage.setItem('processedSpecialRequests', JSON.stringify(newProcessedState));
+    setProcessedSpecialRequests(newProcessedState);
+  };
+
+  // 🆕 标记特殊要求为已处理
+  const markSpecialRequestAsProcessed = (orderNumber, specialRequestText) => {
+    const key = `${orderNumber}_${specialRequestText}`;
+    const newProcessedState = {
+      ...processedSpecialRequests,
+      [key]: {
+        processedAt: new Date().toISOString(),
+        orderNumber,
+        specialRequestText
+      }
+    };
+    saveProcessedState(newProcessedState);
+    message.success(`已标记订单 ${orderNumber} 的特殊要求为已处理`);
+  };
+
+  // 🆕 取消特殊要求处理标记
+  const unmarkSpecialRequestAsProcessed = (orderNumber, specialRequestText) => {
+    const key = `${orderNumber}_${specialRequestText}`;
+    const newProcessedState = { ...processedSpecialRequests };
+    delete newProcessedState[key];
+    saveProcessedState(newProcessedState);
+    message.success(`已取消订单 ${orderNumber} 的特殊要求处理标记`);
+  };
+
+  // 🆕 检查特殊要求是否已处理
+  const isSpecialRequestProcessed = (orderNumber, specialRequestText) => {
+    const key = `${orderNumber}_${specialRequestText}`;
+    return !!processedSpecialRequests[key];
+  };
 
   // 新增状态：订单组颜色映射和酒店预订状态
-  const [orderGroupColors, setOrderGroupColors] = useState({});
+  // 🎨 不再需要订单组颜色状态，因为已统一边框颜色
   const [hotelBookingStatus, setHotelBookingStatus] = useState({});
 
   // 组件初始化时清除本地存储，确保不使用可能包含静态数据的草稿
@@ -789,50 +999,57 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
     // 去掉"一日游"等后缀，但保留重要的区分信息
     locationName = locationName.replace(/一日游$/, '').trim();
     
-    // 🎯 特殊处理：保留可选行程的重要区分信息
+    // 🎯 特殊处理：保留可选行程的重要区分信息，使用缩写显示
     // 对于亚瑟港相关行程，保留关键特征词
     if (locationName.includes('亚瑟港')) {
-      if (locationName.includes('历史文化') || locationName.includes('含门票')) {
-        return '亚瑟港(含门票)';
-      } else if (locationName.includes('不含门票')) {
-        return '亚瑟港(不含门票)';
+      if (locationName.includes('不含门票')) {
+        return '亚(不)';
       } else if (locationName.includes('迅游') || locationName.includes('1.5小时')) {
-        return '亚瑟港(迅游)';
+        return '亚(迅)';
       } else {
-        return '亚瑟港';
+        // 默认含门票，不显示括号
+        return '亚';
       }
     }
     
     // 对于酒杯湾相关行程，保留特征词
     if (locationName.includes('酒杯湾')) {
       if (locationName.includes('自然风光') || locationName.includes('徒步')) {
-        return '酒杯湾(徒步)';
+        return '酒(徒步)';
       } else if (locationName.includes('观景台')) {
-        return '酒杯湾(观景)';
+        return '酒(观景)';
       } else {
-        return '酒杯湾';
+        return '酒';
       }
     }
     
-    // 其他地点的简化映射
+    // 其他地点的缩写映射
     const simplifiedNames = {
-      '霍巴特市游': '霍巴特',
-      '霍巴特市区': '霍巴特',  
-      '霍巴特周边经典': '霍巴特',
-      '霍巴特': '霍巴特',
-      '布鲁尼岛美食生态': '布鲁尼岛',
-      '布鲁尼岛': '布鲁尼岛',
-      '摇篮山': '摇篮山',
-      '朗塞斯顿': '朗塞斯顿',
-      '玛丽亚岛': '玛丽亚岛',
-      '菲尔德山': '菲尔德山',
-      '菲欣纳国家公园': '菲欣纳',
-      '菲欣纳': '菲欣纳',
-      '塔斯曼半岛': '塔斯曼半岛',
-      '非常湾': '非常湾',
-      '摩恩谷': '摩恩谷',
+      '霍巴特市游': '霍',
+      '霍巴特市区': '霍',  
+      '霍巴特周边经典': '霍',
+      '霍巴特': '霍',
+      '布鲁尼岛美食生态': '布',
+      '布鲁尼岛': '布',
+      '摇篮山': '摇',
+      '朗塞斯顿': '朗',
+      '玛丽亚岛': '玛',
+      '菲尔德山': '菲尔德',
+      '菲欣纳国家公园': '菲',
+      '菲欣纳': '菲',
+      '塔斯曼半岛': '塔',
+      '非常湾': '非常',
+      '摩恩谷': '摩恩',
       '卡尔德': '卡尔德',
-      '珊瑚湾': '珊瑚湾'
+      '珊瑚湾': '珊瑚',
+      '德文波特': '德',
+      '比奇诺': '比',
+      '斯旺西': '斯',
+      '里奇蒙': '里',
+      '惠灵顿山': '惠',
+      '萨拉曼卡': '萨',
+      '塔斯马尼亚恶魔公园': '恶魔',
+      '薰衣草庄园': '薰衣草'
     };
     
     // 检查是否有简化名称
@@ -846,56 +1063,7 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
     return locationName;
   };
   
-  // 获取颜色映射，根据地点名称返回颜色（与主页面保持一致）
-  const getLocationColor = (locationName) => {
-    if (!locationName) return '#1890ff';
-    
-    // 与主页面保持一致的颜色映射，同一地点使用统一颜色
-    const locationColors = {
-      '霍巴特': '#13c2c2',
-      '朗塞斯顿': '#722ed1',
-      '摇篮山': '#7b68ee',
-      '酒杯湾': '#ff9c6e',
-      '亚瑟港': '#dc3545',
-      '布鲁尼岛': '#87d068',
-      '惠灵顿山': '#f56a00',
-      '塔斯马尼亚': '#1890ff',
-      '菲欣纳': '#3f8600',
-      '菲欣纳国家公园': '#3f8600',
-      '一日游': '#108ee9',
-      '跟团游': '#fa8c16',
-      '待安排': '#bfbfbf',
-      '塔斯曼半岛': '#ff4d4f',
-      '玛丽亚岛': '#ffaa00',
-      '摩恩谷': '#9254de',
-      '菲尔德山': '#237804',
-      '非常湾': '#5cdbd3',
-      '卡尔德': '#096dd9'
-    };
-    
-    // 优先进行精确匹配
-    if (locationColors[locationName]) {
-      return locationColors[locationName];
-    }
-    
-    // 查找包含关键词的地点名称
-    for (const key in locationColors) {
-      if (locationName.includes(key)) {
-        return locationColors[key];
-      }
-    }
-    
-    // 如果没有匹配的固定颜色，使用哈希算法生成一致的颜色
-    const hashCode = locationName.split('').reduce((acc, char) => {
-      return char.charCodeAt(0) + ((acc << 5) - acc);
-    }, 0);
-    
-    const h = Math.abs(hashCode) % 360;
-    const s = 70 + Math.abs(hashCode % 20); // 70-90%饱和度
-    const l = 55 + Math.abs((hashCode >> 4) % 15); // 55-70%亮度
-    
-    return `hsl(${h}, ${s}%, ${l}%)`;
-  };
+
 
   // 生成表格数据
   useEffect(() => {
@@ -1405,29 +1573,7 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
     );
   };
 
-  // 生成订单组颜色的函数
-  const generateOrderGroupColors = useCallback((tourGroups) => {
-    const colors = [
-      '#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', 
-      '#13c2c2', '#eb2f96', '#fa541c', '#a0d911', '#2f54eb',
-      '#fa8c16', '#eb2f96', '#52c41a', '#1890ff', '#722ed1'
-    ];
-    
-    const colorMap = {};
-    const usedOrderIds = new Set();
-    
-    tourGroups.forEach((group, index) => {
-      // 使用订单ID作为分组依据，如果没有则使用group.id
-      const orderId = group.orderId || group.customer?.orderId || group.id;
-      
-      if (!usedOrderIds.has(orderId)) {
-        colorMap[orderId] = colors[usedOrderIds.size % colors.length];
-        usedOrderIds.add(orderId);
-      }
-    });
-    
-    return colorMap;
-  }, []);
+  // 🎨 不再需要订单组颜色生成，因为已统一边框颜色
 
   // 检查订单酒店预订状态的函数
   const checkHotelBookingStatus = useCallback(async (tourGroups) => {
@@ -1461,7 +1607,8 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
               hasHotelBooking: true,
               hotelBookingStatus: response.data.bookingStatus,
               hotelInfo: response.data,
-              isConfirmed: response.data.bookingStatus === 'confirmed'
+              // 🔥 修复：只有confirmed、checked_in、checked_out才是真正已确认状态
+              isConfirmed: ['confirmed', 'checked_in', 'checked_out'].includes(response.data.bookingStatus)
             };
             statusMap[orderId] = hotelStatus;
             console.log(`✅ [调试] 订单 ${orderId} 有酒店预订:`, hotelStatus);
@@ -1498,40 +1645,31 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
   // 当数据更新时重新生成颜色和检查酒店状态
   useEffect(() => {
     if (tourGroups && tourGroups.length > 0) {
-      const colors = generateOrderGroupColors(tourGroups);
-      setOrderGroupColors(colors);
-      
-      // 异步检查酒店预订状态
+      // 🎨 不再需要生成订单组颜色，直接检查酒店预订状态
       checkHotelBookingStatus(tourGroups).then(status => {
         setHotelBookingStatus(status);
       });
     }
-  }, [tourGroups, generateOrderGroupColors, checkHotelBookingStatus]);
+  }, [tourGroups, checkHotelBookingStatus]);
 
-  // 获取订单组边框样式的函数
+  // 🎨 获取订单组边框样式的函数 - 统一边框颜色，删除粗边框阴影样式
   const getOrderGroupBorderStyle = (group) => {
     const orderId = group.orderId || group.customer?.orderId || group.id;
-    const color = orderGroupColors[orderId] || '#d9d9d9';
     const hotelStatus = hotelBookingStatus[orderId];
     
-    // 如果有确认的酒店预订，使用更粗的边框和阴影
-    if (hotelStatus?.isConfirmed) {
+    // 🎨 统一使用蓝色边框，不再根据订单区分颜色
+    const uniformColor = '#1890ff';
+    
+    if (hotelStatus?.hasHotelBooking) {
+      // 有酒店预订（无论是否确认），使用虚线边框
       return {
-        border: `3px solid ${color}`,
-        boxShadow: `0 0 8px ${color}40, inset 0 0 8px ${color}20`,
-        borderRadius: '8px'
-      };
-    } else if (hotelStatus?.hasHotelBooking) {
-      // 有酒店预订但未确认，使用虚线边框
-      return {
-        border: `2px dashed ${color}`,
-        boxShadow: `0 0 4px ${color}30`,
+        border: `2px dashed ${uniformColor}`,
         borderRadius: '6px'
       };
     } else {
       // 普通边框
       return {
-        border: `2px solid ${color}`,
+        border: `2px solid ${uniformColor}`,
         borderRadius: '6px'
       };
     }
@@ -1689,24 +1827,89 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
         hotel: locationInfo.pickupLocation || order.pickupLocation || '未指定'
       };
       
-      // 🏨 简化调试：检查后端是否返回酒店字段
-      console.log('🏨 [前端调试] 订单' + orderInfo.orderNumber + ' - 最终提取的酒店数据:', {
-        hotelLevel: orderInfo.hotelLevel,
-        roomType: orderInfo.roomType,
-        hotelRoomCount: orderInfo.hotelRoomCount,
-        hotelCheckInDate: orderInfo.hotelCheckInDate,
-        hotelCheckOutDate: orderInfo.hotelCheckOutDate,
-        roomDetails: orderInfo.roomDetails
-      });
+      
     
     // 提取当前订单ID以启用初始化功能
     const currentBookingId = bookingId ? parseInt(bookingId) : null;
     
+    // 🆕 检查特殊要求处理状态（包括测试用例）
+    let specialInfo = detectSpecialRequests(orderInfo.specialRequests, '');
+    
+    // 🆕 为订单307添加测试特殊要求
+    if (!specialInfo && orderInfo.orderNumber && orderInfo.orderNumber.includes('307')) {
+      specialInfo = { text: '提前1天到达!' };
+    }
+    
+    const isProcessed = specialInfo ? isSpecialRequestProcessed(orderInfo.orderNumber, specialInfo.text) : false;
+    
     return (
-      <div className="order-detail-content">
-        <div className="detail-header">
-          <h3>{extractLocationName(orderInfo.tourName)}</h3>
-          <div className="tag-container">
+      <div className="order-detail-content" style={{ maxWidth: '480px', padding: '0' }}>
+        {/* 🆕 顶部特殊要求处理状态 */}
+        {specialInfo && (
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px',
+            backgroundColor: isProcessed ? '#f6ffed' : '#fff2e8',
+            border: `1px solid ${isProcessed ? '#b7eb8f' : '#ffbb96'}`,
+            borderRadius: '8px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ 
+                  fontWeight: 'bold', 
+                  color: isProcessed ? '#52c41a' : '#fa8c16', 
+                  fontSize: '13px',
+                  marginBottom: '4px'
+                }}>
+                  {isProcessed ? '✅ 特殊要求已处理' : '⚠️ 特殊要求待处理'}
+                </div>
+                <div style={{ fontSize: '13px', color: '#666', lineHeight: '1.4' }}>
+                  {specialInfo.text}
+                </div>
+              </div>
+              <Button
+                size="small"
+                type={isProcessed ? "default" : "primary"}
+                onClick={() => {
+                  if (isProcessed) {
+                    unmarkSpecialRequestAsProcessed(orderInfo.orderNumber, specialInfo.text);
+                  } else {
+                    markSpecialRequestAsProcessed(orderInfo.orderNumber, specialInfo.text);
+                  }
+                }}
+                style={{
+                  fontSize: '12px',
+                  height: '28px',
+                  minWidth: '70px',
+                  borderRadius: '6px',
+                  marginLeft: '12px'
+                }}
+              >
+                {isProcessed ? '取消标记' : '标记已处理'}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* 🎯 产品标题区域 */}
+        <div style={{
+          marginBottom: '16px',
+          padding: '16px',
+          backgroundColor: '#fafafa',
+          borderRadius: '8px',
+          border: '1px solid #f0f0f0'
+        }}>
+          <h3 style={{ 
+            margin: '0 0 8px 0', 
+            fontSize: '16px', 
+            fontWeight: 'bold', 
+            color: '#262626',
+            lineHeight: '1.4'
+          }}>
+            {extractLocationName(orderInfo.tourName)}
+          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <Tag color={orderInfo.tourType === 'day_tour' ? 'blue' : 'orange'}>
               {orderInfo.tourType === 'day_tour' ? '一日游' : '跟团游'}
             </Tag>
@@ -1848,7 +2051,9 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
             </div>
           )}
 
-          {/* 酒店预订状态显示 */}
+
+
+          {/* 🏨 酒店预订状态显示 - 移动到接送信息下方 */}
           {(() => {
             const orderId = orderInfo.bookingId;
             const hotelStatus = hotelBookingStatus[orderId];
@@ -1856,25 +2061,25 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
             if (hotelStatus?.hasHotelBooking) {
               return (
                 <div style={{
-                  marginBottom: '10px', 
-                  padding: '8px', 
+                  marginBottom: '12px', 
+                  padding: '10px', 
                   backgroundColor: hotelStatus.isConfirmed ? '#f6ffed' : '#fff7e6',
                   border: `1px solid ${hotelStatus.isConfirmed ? '#b7eb8f' : '#ffd591'}`,
-                  borderRadius: '4px', 
+                  borderRadius: '6px', 
                   fontSize: '12px'
                 }}>
                   <div style={{
                     display: 'flex', 
                     alignItems: 'center', 
-                    marginBottom: '4px',
+                    marginBottom: '6px',
                     color: hotelStatus.isConfirmed ? '#52c41a' : '#fa8c16',
                     fontWeight: '600'
                   }}>
-                    <HomeOutlined style={{marginRight: '4px'}} />
+                    <HomeOutlined style={{marginRight: '6px'}} />
                     {hotelStatus.isConfirmed ? '✅ 酒店已确认' : '⏳ 酒店预订中'}
                   </div>
                   {hotelStatus.hotelInfo && (
-                    <div style={{fontSize: '11px', color: '#666'}}>
+                    <div style={{fontSize: '11px', color: '#666', lineHeight: '1.4'}}>
                       {hotelStatus.hotelInfo.hotelName && (
                         <div>🏨 {hotelStatus.hotelInfo.hotelName}</div>
                       )}
@@ -1892,41 +2097,98 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
             
             return null;
           })()}
+        </div>
 
-          {/* 操作按钮区域 */}
-          <div style={{marginTop: '10px', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px', borderTop: '1px solid #e9ecef'}}>
-            <div style={{display: 'flex', gap: '6px', justifyContent: 'center'}}>
-              <Button 
-                type="primary" 
-                size="small" 
-                icon={<EditOutlined />}
-                onClick={() => handleEditScheduleInfo(locationData, orderInfo)}
-                style={{fontSize: '11px', height: '28px'}}
-              >
-                修改信息
-              </Button>
-              <Button 
-                type="default" 
-                size="small" 
-                icon={<HomeOutlined />}
-                onClick={() => handleBookHotel(locationData, orderInfo)}
-                style={{fontSize: '11px', height: '28px', color: '#fa8c16', borderColor: '#fa8c16'}}
-              >
-                {(() => {
-                  const orderId = orderInfo.bookingId;
-                  const hotelStatus = hotelBookingStatus[orderId];
-                  
-                  if (hotelStatus?.isConfirmed) {
-                    return '管理酒店';
-                  } else if (hotelStatus?.hasHotelBooking) {
-                    return '修改酒店';
-                  } else {
-                    return orderInfo.hotelLevel ? '分配酒店' : '预定酒店';
-                  }
-                })()}
-              </Button>
-            </div>
+        {/* 🔧 操作按钮区域 - 重新设计为卡片式 */}
+        <div style={{
+          marginTop: '16px',
+          padding: '12px',
+          backgroundColor: '#fafafa',
+          borderRadius: '8px',
+          border: '1px solid #f0f0f0'
+        }}>
+          <div style={{ marginBottom: '8px', fontSize: '13px', fontWeight: '600', color: '#595959' }}>
+            🛠️ 操作
           </div>
+          <div style={{display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap'}}>
+            <Button 
+              type="primary" 
+              size="small" 
+              icon={<EditOutlined />}
+              onClick={() => handleEditScheduleInfo(locationData, orderInfo)}
+              style={{
+                fontSize: '12px', 
+                height: '32px',
+                borderRadius: '6px',
+                flex: '1',
+                minWidth: '90px'
+              }}
+            >
+              修改信息
+            </Button>
+
+            <Button 
+              type="default" 
+              size="small" 
+              danger
+              icon={<ExclamationCircleOutlined />}
+              onClick={() => handleDeleteSchedule(locationData, orderInfo)}
+              style={{
+                fontSize: '12px', 
+                height: '32px',
+                borderRadius: '6px',
+                flex: '1',
+                minWidth: '90px'
+              }}
+            >
+              删除行程
+            </Button>
+            <Button 
+              type="default" 
+              size="small" 
+              icon={<HomeOutlined />}
+              onClick={() => handleMultiHotelManagement(locationData, orderInfo)}
+              style={{
+                fontSize: '12px', 
+                height: '32px', 
+                color: '#722ed1', 
+                borderColor: '#722ed1',
+                borderRadius: '6px',
+                flex: '1',
+                minWidth: '90px'
+              }}
+            >
+              🏨 酒店管理
+            </Button>
+          </div>
+        </div>
+
+        {/* 🆕 加行程按钮 - 移到最下面，独立设计 */}
+        <div style={{
+          marginTop: '12px',
+          padding: '12px',
+          backgroundColor: '#f6ffed',
+          borderRadius: '8px',
+          border: '1px solid #b7eb8f',
+          textAlign: 'center'
+        }}>
+          <Tooltip title="为此订单添加额外行程">
+            <Button 
+              type="primary" 
+              size="middle"
+              icon={<PlusOutlined />}
+              onClick={() => handleAddExtraSchedule(orderInfo)}
+              style={{
+                fontSize: '13px',
+                height: '36px',
+                borderRadius: '6px',
+                fontWeight: '600',
+                boxShadow: '0 2px 4px rgba(24, 144, 255, 0.2)'
+              }}
+            >
+              🚌 为此订单加行程
+            </Button>
+          </Tooltip>
         </div>
 
       </div>
@@ -1965,13 +2227,287 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
     setEditModalVisible(true);
   };
 
-  // 处理预定酒店
-  const handleBookHotel = (locationData, orderInfo) => {
-    console.log('🏨 酒店预订功能 - 详细信息:', { locationData, orderInfo });
+
+
+  // 处理删除行程
+  const handleDeleteSchedule = (locationData, orderInfo) => {
+    console.log('🗑️ 删除行程:', { locationData, orderInfo });
     
-    // 直接打开酒店预订弹窗
-    setHotelBookingModalVisible(true);
-    setCurrentHotelBookingData({ locationData, orderInfo });
+    // 获取真正的数据库行程ID（从scheduleId字段获取）
+    const scheduleId = locationData.location?.scheduleId;
+    const scheduleTitle = locationData.location?.title || locationData.location?.name || '未知行程';
+    
+    console.log('🎯 找到的行程ID:', scheduleId, '标题:', scheduleTitle);
+    
+    if (!scheduleId) {
+      console.error('❌ 无法获取有效的行程ID');
+      message.error('无法获取行程ID，删除失败');
+      return;
+    }
+    
+    // 验证ID是数字类型
+    if (typeof scheduleId !== 'number' || isNaN(scheduleId)) {
+      console.error('❌ 行程ID不是有效数字:', scheduleId);
+      message.error('行程ID格式不正确，删除失败');
+      return;
+    }
+    
+    // 显示确认对话框
+    Modal.confirm({
+      title: '确认删除行程',
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <div>
+          <p>您确定要删除以下单个行程安排吗？</p>
+          <div style={{ 
+            padding: '12px', 
+            backgroundColor: '#fff2f0', 
+            borderRadius: '6px', 
+            border: '1px solid #ffccc7',
+            margin: '12px 0'
+          }}>
+            <p style={{ margin: 0, fontWeight: 'bold', color: '#cf1322' }}>
+              📋 {scheduleTitle}
+            </p>
+            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#666' }}>
+              订单号: {orderInfo.orderNumber || locationData.location?.order?.orderNumber}
+            </p>
+            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#666' }}>
+              行程日期: {locationData.displayDate || locationData.date}
+            </p>
+          </div>
+          <p style={{ color: '#ff4d4f', fontSize: '13px' }}>
+            ⚠️ 只会删除这个特定的行程安排，不会影响订单的其他部分！
+          </p>
+        </div>
+      ),
+      okText: '确认删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const response = await deleteSchedule(scheduleId);
+          if (response.code === 1) {
+            message.success('行程删除成功！');
+            // 刷新数据 - 重新获取最新数据
+            if (onDataRefresh) {
+              await onDataRefresh();
+            } else {
+              await refreshDateLocationStats();
+            }
+          } else {
+            message.error(response.msg || '删除失败');
+          }
+        } catch (error) {
+          console.error('删除行程失败:', error);
+          message.error('删除行程失败：' + (error.message || '未知错误'));
+        }
+      }
+    });
+  };
+
+  // 处理添加额外行程
+  const handleAddExtraSchedule = async (orderInfo) => {
+    console.log('📅 添加额外行程:', orderInfo);
+    
+    try {
+      // 通过bookingId获取完整的订单信息
+      const bookingId = orderInfo.bookingId || orderInfo.id;
+      if (bookingId) {
+        // 从后端获取完整订单信息
+        const response = await getSchedulesByBookingId(bookingId);
+        if (response && response.length > 0) {
+          // 获取第一个排团记录作为参考，补充orderInfo信息
+          const firstSchedule = response[0];
+          const enhancedOrderInfo = {
+            ...orderInfo,
+            tourId: firstSchedule.tourId,
+            tourType: firstSchedule.tourType,
+            orderNumber: firstSchedule.orderNumber,
+            userId: firstSchedule.userId,
+            agentId: firstSchedule.agentId,
+            operatorId: firstSchedule.operatorId,
+            status: firstSchedule.status,
+            paymentStatus: firstSchedule.paymentStatus
+          };
+          console.log('🔍 增强后的订单信息:', enhancedOrderInfo);
+          setCurrentExtraScheduleOrderInfo(enhancedOrderInfo);
+        } else {
+          setCurrentExtraScheduleOrderInfo(orderInfo);
+        }
+      } else {
+        setCurrentExtraScheduleOrderInfo(orderInfo);
+      }
+    } catch (error) {
+      console.error('获取订单详细信息失败:', error);
+      setCurrentExtraScheduleOrderInfo(orderInfo);
+    }
+    
+    setAddExtraScheduleModalVisible(true);
+  };
+
+  // 处理额外行程确认
+  const handleConfirmExtraSchedule = async (scheduleData) => {
+    try {
+      setAddingExtraSchedule(true);
+      console.log('💾 保存额外行程数据:', scheduleData);
+      
+      // 首先获取原订单信息以获取必要的字段
+      const orderInfo = scheduleData.orderInfo;
+      
+      // 获取当前订单的所有天数，用于设置额外行程的天数
+      let maxDayNumber = 1; // 默认值
+      let existingDayNumbers = []; // 存储已存在的天数
+      try {
+        const bookingId = scheduleData.bookingId;
+        console.log(`🔍 正在获取订单 ${bookingId} 的现有行程数据...`);
+        const existingSchedules = await getSchedulesByBookingId(bookingId);
+        console.log(`📋 API返回的行程数据:`, existingSchedules);
+        console.log(`📋 数据类型: ${typeof existingSchedules}, 是否为数组: ${Array.isArray(existingSchedules)}`);
+        
+        // 处理不同的响应格式
+        let scheduleArray = existingSchedules;
+        if (existingSchedules && existingSchedules.data) {
+          scheduleArray = existingSchedules.data; // 如果响应包含data字段
+        }
+        
+        if (scheduleArray && Array.isArray(scheduleArray) && scheduleArray.length > 0) {
+          // 获取所有已存在的dayNumber
+          existingDayNumbers = scheduleArray.map(schedule => {
+            console.log(`📊 处理行程记录:`, schedule);
+            return schedule.dayNumber || 1;
+          });
+          // 找到最大的dayNumber
+          maxDayNumber = Math.max(...existingDayNumbers);
+          console.log(`📅 当前订单已存在天数: [${existingDayNumbers.join(', ')}], 最大天数: ${maxDayNumber}`);
+        } else {
+          console.warn(`⚠️ 未找到现有行程数据，使用默认值。数据:`, existingSchedules);
+        }
+      } catch (error) {
+        console.error('获取现有行程天数失败，使用默认值:', error);
+      }
+      
+      // 根据行程类型和选中的一日游产品设置标题和描述
+      let tourTitle = `额外${scheduleData.scheduleType === 'pickup' ? '接机' : scheduleData.scheduleType === 'dropoff' ? '送机' : '行程'}服务`;
+      let tourDescription = scheduleData.specialRequests || '额外行程安排';
+      
+      // 如果是额外一日游且有选中的产品信息，使用实际的一日游名称
+      if (scheduleData.scheduleType === 'extra_day' && scheduleData.selectedTourInfo) {
+        tourTitle = scheduleData.selectedTourInfo.name;
+        tourDescription = scheduleData.selectedTourInfo.description || scheduleData.selectedTourInfo.name;
+        console.log(`🎯 使用一日游产品信息: ${tourTitle}`);
+      }
+      
+      // 计算dayNumber - 确保不冲突
+      let finalDayNumber;
+      if (scheduleData.scheduleType === 'pickup') {
+        // 接机：优先使用第0天，如果冲突则使用-1, -2等
+        finalDayNumber = 0;
+        while (existingDayNumbers.includes(finalDayNumber)) {
+          finalDayNumber -= 1;
+        }
+      } else {
+        // 送机和额外一日游：从最大天数+1开始，确保不冲突
+        finalDayNumber = maxDayNumber + 1;
+        while (existingDayNumbers.includes(finalDayNumber)) {
+          finalDayNumber += 1;
+        }
+      }
+      console.log(`📊 行程类型: ${scheduleData.scheduleType}, 计算天数: ${finalDayNumber} (已存在天数: [${existingDayNumbers.join(', ')}])`);
+      
+      // 构建排团表数据
+      const tourScheduleData = {
+        bookingId: scheduleData.bookingId,
+        tourDate: scheduleData.scheduleDate, // 转换为数据库字段名
+        contactPerson: scheduleData.contactPerson,
+        contactPhone: scheduleData.contactPhone,
+        adultCount: scheduleData.adultCount,
+        childCount: scheduleData.childCount,
+        pickupLocation: scheduleData.pickupLocation,
+        dropoffLocation: scheduleData.dropoffLocation,
+        pickupTime: scheduleData.pickupTime,
+        dropoffTime: scheduleData.dropoffTime,
+        specialRequests: scheduleData.specialRequests,
+        scheduleType: scheduleData.scheduleType, // 标记为额外行程
+        isExtraSchedule: true, // 额外行程标识
+        // 设置标题和描述
+        title: tourTitle,
+        description: tourDescription,
+        // 根据行程类型设置合适的天数
+        dayNumber: finalDayNumber, // 接机是第0天，其他是最后一天+1
+        displayOrder: scheduleData.scheduleType === 'pickup' ? 1 : scheduleData.scheduleType === 'dropoff' ? 999 : 500,
+        // 从原订单获取必要字段  
+        tourId: scheduleData.tourId || orderInfo?.tourId || null, // 优先使用用户选择的tourId
+        tourType: scheduleData.scheduleType === 'extra_day' ? 'day_tour' : (orderInfo?.tourType || 'extra_schedule'), // 额外一日游使用day_tour类型
+        orderNumber: orderInfo?.orderNumber,
+        userId: orderInfo?.userId,
+        agentId: orderInfo?.agentId,
+        operatorId: orderInfo?.operatorId,
+        status: 'confirmed', // 额外行程直接设为已确认状态
+        paymentStatus: 'paid' // 假设额外行程已支付
+      };
+      
+      // 调用后端API保存行程
+      const response = await saveSchedule(tourScheduleData);
+      
+      if (response.code === 1 || response.success) {
+        message.success('额外行程添加成功！');
+        
+        // 关闭弹窗
+        setAddExtraScheduleModalVisible(false);
+        setCurrentExtraScheduleOrderInfo(null);
+        
+        // 刷新数据 - 重新获取最新数据
+        if (onDataRefresh) {
+          await onDataRefresh();
+        }
+      } else {
+        throw new Error(response.message || '保存失败');
+      }
+      
+    } catch (error) {
+      console.error('保存额外行程失败:', error);
+      message.error(`保存额外行程失败: ${error.message || '未知错误'}`);
+    } finally {
+      setAddingExtraSchedule(false);
+    }
+  };
+
+  // 取消添加额外行程
+  const handleCancelExtraSchedule = () => {
+    setAddExtraScheduleModalVisible(false);
+    setCurrentExtraScheduleOrderInfo(null);
+  };
+
+  // 处理多酒店管理
+  const handleMultiHotelManagement = (locationData, orderInfo) => {
+    console.log('🏨 多酒店管理功能:', { locationData, orderInfo });
+    setCurrentMultiHotelOrderInfo(orderInfo);
+    setMultiHotelModalVisible(true);
+  };
+
+  // 多酒店管理成功回调
+  const handleMultiHotelSuccess = async () => {
+    setMultiHotelModalVisible(false);
+    setCurrentMultiHotelOrderInfo(null);
+    message.success('多酒店预订操作成功！');
+    
+    // 重新检查酒店预订状态
+    if (tourGroups && tourGroups.length > 0) {
+      try {
+        const updatedHotelStatus = await checkHotelBookingStatus(tourGroups);
+        setHotelBookingStatus(updatedHotelStatus);
+      } catch (error) {
+        console.error('刷新酒店预订状态失败:', error);
+      }
+    }
+    
+    // 刷新整体数据
+    if (onDataRefresh) {
+      await onDataRefresh();
+    } else if (onUpdate) {
+      onUpdate();
+    }
   };
 
   // 保存编辑的排团表信息
@@ -2133,8 +2669,10 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
       
       setEditModalVisible(false);
       
-      // 刷新数据
-      if (onUpdate) {
+      // 刷新数据 - 重新获取最新数据
+      if (onDataRefresh) {
+        await onDataRefresh();
+      } else if (onUpdate) {
         onUpdate({
           type: 'refresh'
         });
@@ -2313,28 +2851,51 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
     // 从tourGroups中找到该日期该地点的所有订单
     const ordersForLocation = [];
     
+    // 确定要查找的地点名称列表
+    let targetLocations = [];
+    
+    if (locationRecord.isMerged && locationRecord.originalStats) {
+      // 如果是合并记录，使用原始地点名称列表
+      targetLocations = locationRecord.originalStats.map(stat => stat.location);
+      console.log('🔄 处理合并记录，查找原始地点:', targetLocations);
+    } else if (locationRecord.isMerged && locationRecord.mergedLocations) {
+      // 备用：使用mergedLocations
+      targetLocations = locationRecord.mergedLocations;
+      console.log('🔄 处理合并记录，使用mergedLocations:', targetLocations);
+    } else {
+      // 普通记录，直接使用地点名称
+      targetLocations = [locationRecord.location];
+      console.log('📍 处理普通记录，地点:', targetLocations);
+    }
+    
     tourGroups.forEach(group => {
       const locationData = group.locationsByDate[selectedDateStr];
       if (locationData && locationData.location) {
         const locationName = extractLocationName(locationData.location.name || locationData.name || '');
         
-        // 如果地点匹配
-        if (locationName === locationRecord.location) {
+        // 检查是否匹配任何目标地点
+        if (targetLocations.includes(locationName)) {
           // 构造订单数据
           const orderData = {
             id: group.id,
             order_number: locationData.location.order?.orderNumber || `ORDER-${group.id}`,
             title: locationData.location.name || locationData.name || '',
             tour_location: locationName,
+            original_tour_location: locationName, // 保存原始地点名称
+            original_full_title: locationData.location.name || locationData.name || '', // 保存完整标题
             adult_count: locationData.location.order?.adultCount || 2,
             child_count: locationData.location.order?.childCount || 0,
             customer_name: group.customer?.name || locationData.location.order?.contactPerson || '未知客户',
             contact_phone: locationData.location.order?.contactPhone || '',
             pickup_location: locationData.location.order?.pickupLocation || '',
-            special_requirements: locationData.location.order?.specialRequirements || ''
+            special_requirements: locationData.location.order?.specialRequirements || '',
+            // 如果是合并记录，添加合并信息
+            is_from_merged: locationRecord.isMerged || false,
+            merged_display_name: locationRecord.isMerged ? locationRecord.location : null
           };
           
           ordersForLocation.push(orderData);
+          console.log(`✅ 找到订单: ${orderData.order_number} (${locationName})`);
         }
       }
     });
@@ -2344,10 +2905,16 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
     if (ordersForLocation.length > 0) {
       setSelectedOrders(ordersForLocation);
       setGuideVehicleModalVisible(true);
+      
+      if (locationRecord.isMerged) {
+        message.success(`已加载 ${ordersForLocation.length} 个合并地点的订单数据`);
+      }
     } else {
       message.warning('未找到该地点的订单数据，请检查数据结构');
-      console.log('调试信息 - tourGroups:', tourGroups);
-      console.log('调试信息 - locationRecord:', locationRecord);
+      console.log('❌ 调试信息 - tourGroups:', tourGroups);
+      console.log('❌ 调试信息 - locationRecord:', locationRecord);
+      console.log('❌ 调试信息 - targetLocations:', targetLocations);
+      console.log('❌ 调试信息 - selectedDateStr:', selectedDateStr);
     }
   };
   
@@ -2362,7 +2929,9 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
     }
     
     // 通知父组件刷新整体数据
-    if (onUpdate) {
+    if (onDataRefresh) {
+      await onDataRefresh();
+    } else if (onUpdate) {
       onUpdate();
     }
   };
@@ -2695,22 +3264,83 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
         title={
           <div style={{ 
             display: 'flex', 
+            justifyContent: 'space-between',
             alignItems: 'center', 
             fontSize: '18px', 
             fontWeight: 'bold',
             color: '#495057'
           }}>
-            <CalendarOutlined style={{ marginRight: '8px' }} />
-            {selectedDate ? `${selectedDate.format('YYYY-MM-DD')} 行程分配管理` : '行程分配管理'}
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <CalendarOutlined style={{ marginRight: '8px' }} />
+              {selectedDate ? `${selectedDate.format('YYYY-MM-DD')} 行程分配管理` : '行程分配管理'}
+            </div>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '12px',
+              fontSize: '14px', 
+              fontWeight: 'normal',
+              color: '#666'
+            }}>
+              <Tooltip title="启用后，相似地点将自动智能合并显示">
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <MergeCellsOutlined style={{ 
+                    color: enableDateModalMerge ? '#1890ff' : '#ccc', 
+                    marginRight: '4px' 
+                  }} />
+                  <span style={{ marginRight: '4px' }}>智能：</span>
+                  <Switch 
+                    checked={enableDateModalMerge}
+                    onChange={setEnableDateModalMerge}
+                    size="small"
+                    disabled={manualMergedStats.length > 0}
+                  />
+                </div>
+              </Tooltip>
+              
+              <div style={{ borderLeft: '1px solid #d9d9d9', height: '20px' }}></div>
+              
+              <Tooltip title="手动选择地点进行合并">
+                <Button 
+                  type="primary" 
+                  size="small"
+                  onClick={handleManualMerge}
+                  disabled={selectedLocations.length < 2}
+                  style={{ fontSize: '12px' }}
+                >
+                  合并选中 {selectedLocations.length > 0 && `(${selectedLocations.length})`}
+                </Button>
+              </Tooltip>
+              
+              {manualMergedStats.length > 0 && (
+                <Tooltip title="重置所有合并状态">
+                  <Button 
+                    size="small"
+                    onClick={handleResetManualMerge}
+                    style={{ fontSize: '12px' }}
+                  >
+                    重置
+                  </Button>
+                </Tooltip>
+              )}
+            </div>
           </div>
         }
         open={dateModalVisible}
-        onCancel={() => setDateModalVisible(false)}
+        onCancel={() => {
+          setDateModalVisible(false);
+          setSelectedLocations([]);
+          setManualMergedStats([]);
+        }}
         footer={[
           <Button 
             key="close" 
             type="primary" 
-            onClick={() => setDateModalVisible(false)}
+            onClick={() => {
+              setDateModalVisible(false);
+              setSelectedLocations([]);
+              setManualMergedStats([]);
+            }}
             style={{ 
               borderRadius: '4px',
               fontWeight: 'bold'
@@ -2723,31 +3353,67 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
         style={{ top: 20 }}
       >
         <Table
-          dataSource={dateLocationStats}
+          dataSource={getFinalDisplayStats()}
           rowKey="location"
           pagination={false}
           size="middle"
           style={{ marginTop: '16px' }}
+          rowSelection={{
+            selectedRowKeys: selectedLocations,
+            onChange: (selectedRowKeys) => {
+              setSelectedLocations(selectedRowKeys);
+            },
+            onSelect: (record, selected) => {
+              console.log(`选择地点: ${record.location}, 已选中: ${selected}`);
+            },
+            getCheckboxProps: (record) => ({
+              disabled: record.isManualMerged || manualMergedStats.length > 0, // 已合并的记录或存在手动合并时禁用选择
+            }),
+          }}
           columns={[
             {
               title: '目的地',
               dataIndex: 'location',
               key: 'location',
-              width: 120,
-              render: (location) => (
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  fontWeight: 'bold',
-                  color: '#262626',
-                  fontSize: '14px'
-                }}>
-                  <EnvironmentOutlined style={{ 
-                    color: getLocationColor(location), 
-                    marginRight: '6px',
-                    fontSize: '16px'
-                  }} />
-                  {location}
+              width: 150,
+              render: (location, record) => (
+                <div>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    fontWeight: 'bold',
+                    color: '#262626',
+                    fontSize: '14px'
+                  }}>
+                    <EnvironmentOutlined style={{ 
+                      color: getLocationColor(location), 
+                      marginRight: '6px',
+                      fontSize: '16px'
+                    }} />
+                    {location}
+                  </div>
+                  {record.isMerged && record.mergedLocations && (
+                    <div style={{ 
+                      fontSize: '11px', 
+                      color: '#666', 
+                      marginTop: '2px',
+                      background: record.isManualMerged ? '#fff2e8' : '#f0f9ff',
+                      padding: '2px 4px',
+                      borderRadius: '3px',
+                      border: record.isManualMerged ? '1px solid #ffd591' : '1px solid #e0f2fe'
+                    }}>
+                      {record.isManualMerged ? '手动合并' : '智能合并'}: {record.mergedLocations.join(' + ')}
+                    </div>
+                  )}
+                  {record.isMerged && (
+                    <Tag 
+                      size="small" 
+                      color={record.isManualMerged ? "orange" : "blue"} 
+                      style={{ marginTop: '2px' }}
+                    >
+                      {record.isManualMerged ? '手动合并' : '智能合并'} ({record.originalStats?.length || 0})
+                    </Tag>
+                  )}
                 </div>
               ),
             },
@@ -2755,41 +3421,65 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
               title: '团队数',
               dataIndex: 'count',
               key: 'count',
-              width: 80,
+              width: 90,
               align: 'center',
-              render: (count) => (
-                <Tag 
-                  color="blue" 
-                  style={{ 
-                    borderRadius: '4px', 
-                    fontSize: '13px',
-                    fontWeight: 'bold',
-                    padding: '4px 8px'
-                  }}
-                >
-                  {count}
-                </Tag>
+              render: (count, record) => (
+                <div>
+                  <Tag 
+                    color={record.isMerged ? "cyan" : "blue"}
+                    style={{ 
+                      borderRadius: '4px', 
+                      fontSize: '13px',
+                      fontWeight: 'bold',
+                      padding: '4px 8px'
+                    }}
+                  >
+                    {count}
+                  </Tag>
+                  {record.isMerged && (
+                    <div style={{ 
+                      fontSize: '10px', 
+                      color: '#1890ff',
+                      marginTop: '2px',
+                      fontStyle: 'italic'
+                    }}>
+                      合并总数
+                    </div>
+                  )}
+                </div>
               ),
             },
             {
               title: '总人数',
               dataIndex: 'totalPax',
               key: 'totalPax',
-              width: 80,
+              width: 90,
               align: 'center',
-              render: (totalPax) => (
-                <Tag 
-                  color="green" 
-                  style={{ 
-                    borderRadius: '4px', 
-                    fontSize: '13px',
-                    fontWeight: 'bold',
-                    padding: '4px 8px'
-                  }}
-                >
-                  <TeamOutlined style={{ marginRight: '4px' }} />
-                  {totalPax}
-                </Tag>
+              render: (totalPax, record) => (
+                <div>
+                  <Tag 
+                    color={record.isMerged ? "lime" : "green"}
+                    style={{ 
+                      borderRadius: '4px', 
+                      fontSize: '13px',
+                      fontWeight: 'bold',
+                      padding: '4px 8px'
+                    }}
+                  >
+                    <TeamOutlined style={{ marginRight: '4px' }} />
+                    {totalPax}
+                  </Tag>
+                  {record.isMerged && (
+                    <div style={{ 
+                      fontSize: '10px', 
+                      color: '#52c41a',
+                      marginTop: '2px',
+                      fontStyle: 'italic'
+                    }}>
+                      合并总数
+                    </div>
+                  )}
+                </div>
               ),
             },
             {
@@ -2984,25 +3674,28 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
           }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#007bff' }}>
-                {dateLocationStats.length}
+                {getFinalDisplayStats().length}
               </div>
-              <div style={{ fontSize: '13px', color: '#6c757d', fontWeight: '500' }}>总目的地</div>
+              <div style={{ fontSize: '13px', color: '#6c757d', fontWeight: '500' }}>
+                {manualMergedStats.length > 0 ? '手动合并后' : 
+                 (enableDateModalMerge ? '智能合并后' : '总目的地')}
+              </div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>
-                {dateLocationStats.filter(item => item.isAssigned).length}
+                {getFinalDisplayStats().filter(item => item.isAssigned).length}
               </div>
               <div style={{ fontSize: '13px', color: '#6c757d', fontWeight: '500' }}>已分配</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffc107' }}>
-                {dateLocationStats.filter(item => !item.isAssigned).length}
+                {getFinalDisplayStats().filter(item => !item.isAssigned).length}
               </div>
               <div style={{ fontSize: '13px', color: '#6c757d', fontWeight: '500' }}>待分配</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6f42c1' }}>
-                {dateLocationStats.reduce((sum, item) => sum + item.totalPax, 0)}
+                {getFinalDisplayStats().reduce((sum, item) => sum + item.totalPax, 0)}
               </div>
               <div style={{ fontSize: '13px', color: '#6c757d', fontWeight: '500' }}>总人数</div>
             </div>
@@ -3207,16 +3900,13 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
                 
                 const orderId = group.orderId || group.customer?.orderId || group.id;
                 const hotelStatus = hotelBookingStatus[orderId];
-                const orderColor = orderGroupColors[orderId] || '#d9d9d9';
                 
-                // 生成订单组编号（简化显示）
-                const orderGroupNumber = Object.keys(orderGroupColors).indexOf(orderId) + 1;
+
                 
                 // 生成CSS类名
                 let containerClasses = 'tour-container';
-                if (hotelStatus?.isConfirmed) {
-                  containerClasses += ' hotel-confirmed';
-                } else if (hotelStatus?.hasHotelBooking) {
+                if (hotelStatus?.hasHotelBooking) {
+                  // 🎨 有酒店预订时添加特殊样式，不再区分确认状态
                   containerClasses += ' hotel-pending';
                 }
 
@@ -3236,14 +3926,99 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
                     onDragEnter={(e) => handleContainerDragEnter(e, containerId)}
                     onDragOver={(e) => e.preventDefault()}
                   >
-                    {/* 订单组编号标识 */}
-                    <div 
-                      className="order-group-identifier"
-                      style={{ backgroundColor: orderColor }}
-                      title={`订单组 ${orderGroupNumber} - ${orderId}`}
-                    >
-                      {orderGroupNumber}
-                    </div>
+                    {/* 特殊情况角标 - 显示在整个订单组上 */}
+                    {(() => {
+                      // 详细调试：打印完整的数据结构
+                      // 🆕 获取特殊要求数据
+                      let specialRequests, remarks, orderNumber;
+                      
+                      // 从group.customer获取基本信息
+                      orderNumber = group.customer?.orderNumber || group.id;
+                      
+                      // 从locationsByDate中查找特殊要求
+                      if (group.locationsByDate) {
+                        for (const [date, locationData] of Object.entries(group.locationsByDate)) {
+                          if (locationData?.location?.specialRequests || locationData?.location?.remarks) {
+                            specialRequests = locationData.location.specialRequests || specialRequests;
+                            remarks = locationData.location.remarks || remarks;
+                            break;
+                          }
+                        }
+                      }
+                      
+                                            const specialInfo = detectSpecialRequests(specialRequests, remarks);
+                      
+                      // 🆕 只有未处理的特殊要求才显示角标
+                      if (specialInfo) {
+                        const isProcessed = isSpecialRequestProcessed(orderNumber, specialInfo.text);
+                        
+                        if (!isProcessed) {
+                          return (
+                            <div
+                              className="order-group-badge"
+                              style={{
+                                position: 'absolute',
+                                top: '-8px',
+                                left: '-8px',
+                                backgroundColor: '#ff4d4f',
+                                color: 'white',
+                                borderRadius: '50%',
+                                width: '16px',
+                                height: '16px',
+                                zIndex: 15,
+                                border: '2px solid white',
+                                boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '8px',
+                                fontWeight: 'bold'
+                              }}
+                              title={`特殊要求: ${specialInfo.text} (点击查看详情)`}
+                            >
+                              !
+                            </div>
+                          );
+                        }
+                      }
+                      
+                                            // 🆕 测试角标 - 为订单307添加模拟特殊要求用于测试
+                      if (orderNumber && orderNumber.includes('307') && !specialInfo) {
+                        const testSpecialInfo = { text: '提前1天到达!' };
+                        const isTestProcessed = isSpecialRequestProcessed(orderNumber, testSpecialInfo.text);
+                        
+                        if (!isTestProcessed) {
+                          return (
+                            <div
+                              className="order-group-badge"
+                              style={{
+                                position: 'absolute',
+                                top: '-8px',
+                                left: '-8px',
+                                backgroundColor: '#ff4d4f',
+                                color: 'white',
+                                borderRadius: '50%',
+                                width: '16px',
+                                height: '16px',
+                                zIndex: 15,
+                                border: '2px solid white',
+                                boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '8px',
+                                fontWeight: 'bold'
+                              }}
+                              title="测试特殊要求: 提前1天到达! (点击查看详情)"
+                            >
+                              !
+                            </div>
+                          );
+                        }
+                      }
+                      
+                      return null;
+                    })()}
                     
                     {/* 酒店预订状态图标 */}
                     {getHotelBookingIcon(group)}
@@ -3283,19 +4058,26 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
                                 onDragStart={(e) => handleDragStart(e, group.id, segIndex, date.date, locationData)}
                                 onDragEnd={handleDragEnd}
                                 data-index={dateIndex}
+                                style={{
+                                  position: 'relative'
+                                }}
                               >
+                                
+                                
+
+
                                 <div 
                                   className="location-name" 
                                   style={{
-                                            backgroundColor: locationData.location?.color || locationData.color || getLocationColor(locationData.location?.name || locationData.name || ''),
-                                            borderLeft: `3px solid ${locationData.location?.color || locationData.color || getLocationColor(locationData.location?.name || locationData.name || '')}`,
-                                            boxShadow: `0 1px 4px ${locationData.location?.color || locationData.color || getLocationColor(locationData.location?.name || locationData.name || '')}30`,
+                                            backgroundColor: getLocationColor(locationData.location?.name || locationData.name || ''),
+                                            borderLeft: `3px solid ${getLocationColor(locationData.location?.name || locationData.name || '')}`,
+                                            boxShadow: `0 1px 4px ${getLocationColor(locationData.location?.name || locationData.name || '')}30`,
                                             padding: '3px 6px',
-                                            fontSize: '12px'
+                                            fontSize: '10px'
                                   }}
                                 >
                                           {extractLocationName(locationData.location?.name || locationData.name || '')}
-                                          <Tag color={locationData.location?.color || locationData.color || getLocationColor(locationData.location?.name || locationData.name || '')} className="pax-tag">
+                                          <Tag color={getLocationColor(locationData.location?.name || locationData.name || '')} className="pax-tag">
                                             <TeamOutlined /> {getPersonCount(locationData)}
                                   </Tag>
                                 </div>
@@ -3416,35 +4198,26 @@ const TourScheduleTable = ({ data, loading, dateRange, onUpdate }) => {
         </Form>
       </Modal>
       
-      {/* 酒店预订弹窗 */}
-      <HotelBookingModal
-        visible={hotelBookingModalVisible}
+
+      
+      {/* 添加额外行程弹窗 */}
+      <AddExtraScheduleModal
+        visible={addExtraScheduleModalVisible}
+        onCancel={handleCancelExtraSchedule}
+        onConfirm={handleConfirmExtraSchedule}
+        orderInfo={currentExtraScheduleOrderInfo}
+        loading={addingExtraSchedule}
+      />
+
+      {/* 多酒店管理弹窗 */}
+      <MultiHotelBookingModal
+        visible={multiHotelModalVisible}
         onCancel={() => {
-          setHotelBookingModalVisible(false);
-          setCurrentHotelBookingData(null);
+          setMultiHotelModalVisible(false);
+          setCurrentMultiHotelOrderInfo(null);
         }}
-        onSuccess={async () => {
-          setHotelBookingModalVisible(false);
-          setCurrentHotelBookingData(null);
-          message.success('酒店预订操作成功！');
-          
-          // 重新检查酒店预订状态
-          if (tourGroups && tourGroups.length > 0) {
-            try {
-              const updatedHotelStatus = await checkHotelBookingStatus(tourGroups);
-              setHotelBookingStatus(updatedHotelStatus);
-            } catch (error) {
-              console.error('刷新酒店预订状态失败:', error);
-            }
-          }
-          
-          // 刷新整体数据
-          if (onUpdate) {
-            onUpdate();
-          }
-        }}
-        locationData={currentHotelBookingData?.locationData}
-        orderInfo={currentHotelBookingData?.orderInfo}
+        onSuccess={handleMultiHotelSuccess}
+        orderInfo={currentMultiHotelOrderInfo}
       />
       
       {/* 固定在右下角的横向导航控制器 - 始终显示 */}

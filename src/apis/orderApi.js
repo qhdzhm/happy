@@ -182,4 +182,39 @@ export function deleteOrder(bookingId) {
     url: `/admin/orders/${bookingId}`,
     method: 'delete'
   });
+}
+
+/**
+ * 管理员确认订单（支持价格调整）
+ * @param {number} bookingId 订单ID
+ * @param {number} adjustedPrice 调整后的价格（可选）
+ * @param {string} adjustmentReason 价格调整原因（可选）
+ * @returns {Promise}
+ */
+export function confirmOrderByAdmin(bookingId, adjustedPrice, adjustmentReason) {
+  const params = {};
+  if (adjustedPrice !== undefined && adjustedPrice !== null) {
+    params.adjustedPrice = adjustedPrice;
+  }
+  if (adjustmentReason) {
+    params.adjustmentReason = adjustmentReason;
+  }
+  
+  return request({
+    url: `/admin/orders/confirm/${bookingId}`,
+    method: 'put',
+    params
+  });
+} 
+
+/**
+ * 发送确认单
+ * @param {number} bookingId 订单ID
+ * @returns {Promise}
+ */
+export function sendConfirmationEmail(bookingId) {
+  return request({
+    url: `/admin/orders/${bookingId}/send-confirmation`,
+    method: 'post'
+  });
 } 

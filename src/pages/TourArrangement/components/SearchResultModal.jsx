@@ -107,7 +107,7 @@ const SearchResultModal = ({ visible, onCancel, searchResults, searchType, searc
                             width: 40,
                             height: 40,
                             borderRadius: '50%',
-                            background: schedule.color || '#1890ff',
+                            background: '#1890ff',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',

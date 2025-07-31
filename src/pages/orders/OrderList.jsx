@@ -254,6 +254,12 @@ const OrderList = () => {
     }
   };
 
+  // 🔥 确认订单（支持价格调整）
+  const handleConfirmOrder = (record) => {
+    // 跳转到订单确认页面，传递订单信息
+    window.location.href = `/orders/confirm/${record.bookingId}`;
+  };
+
   // 用户选择变化
   const handleUserSelect = (value, option) => {
     if (value) {
@@ -526,6 +532,17 @@ const OrderList = () => {
               详情
             </Button>
             
+            {/* 🔥 待确认订单显示确认按钮 */}
+            {isPending && (
+              <Button
+                type="primary"
+                size="small"
+                onClick={() => handleConfirmOrder(record)}
+              >
+                确认订单
+              </Button>
+            )}
+            
             <Button
               type="link"
               size="small"
@@ -533,8 +550,6 @@ const OrderList = () => {
             >
               更新信息
             </Button>
-            
-
             
             {isConfirmed && isPaid && (
               <Button

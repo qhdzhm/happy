@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Card, Button, DatePicker, Space, Typography, Tag, message } from 'antd';
-import { PrinterOutlined, ExportOutlined } from '@ant-design/icons';
+import { Table, Card, Button, DatePicker, Space, Typography, Tag, message, Switch, Tooltip } from 'antd';
+import { PrinterOutlined, ExportOutlined, MergeCellsOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import * as tourAssignmentAPI from '@/api/tourAssignment';
 
@@ -10,10 +10,112 @@ const AssignmentTable = () => {
   const [loading, setLoading] = useState(false);
   const [assignments, setAssignments] = useState([]);
   const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [enableMerge, setEnableMerge] = useState(true); // 默认启用地点合并
 
   useEffect(() => {
     fetchAssignments();
-  }, [selectedDate]);
+  }, [selectedDate, enableMerge]);
+
+  // 地点合并规则配置
+  const mergeRules = {
+    // 亚瑟港相关地点可以合并
+    '亚瑟港': ['亚瑟港', '亚瑟港(迅)', '亚瑟港(不)', '亚(迅)', '亚(不)', '亚'],
+    // 玛丽亚岛和酒杯湾可以合并（经常一起游览）
+    '玛丽亚岛+酒杯湾': ['玛丽亚岛', '玛', '酒杯湾', '酒', '酒(徒步)', '酒(观景)'],
+    // 布鲁尼岛相关
+    '布鲁尼岛': ['布鲁尼岛', '布'],
+    // 霍巴特相关
+    '霍巴特': ['霍巴特', '霍'],
+    // 摇篮山相关
+    '摇篮山': ['摇篮山', '摇'],
+    // 朗塞斯顿相关
+    '朗塞斯顿': ['朗塞斯顿', '朗']
+  };
+
+  // 获取地点的合并组
+  const getMergeGroup = (destination) => {
+    for (const [groupName, locations] of Object.entries(mergeRules)) {
+      if (locations.includes(destination)) {
+        return groupName;
+      }
+    }
+    return destination; // 如果没有匹配的合并规则，返回原地点
+  };
+
+  // 智能合并同一导游的相似地点
+  const mergeAssignmentsByGuideAndLocation = (assignments) => {
+    if (!assignments || assignments.length === 0) return [];
+
+    // 按导游分组
+    const guideGroups = {};
+    assignments.forEach(assignment => {
+      const guideKey = assignment.guide?.guideId || 'unknown';
+      if (!guideGroups[guideKey]) {
+        guideGroups[guideKey] = [];
+      }
+      guideGroups[guideKey].push(assignment);
+    });
+
+    const mergedAssignments = [];
+
+    // 对每个导游的分配进行地点合并
+    Object.values(guideGroups).forEach(guideAssignments => {
+      // 按合并组分类
+      const locationGroups = {};
+      guideAssignments.forEach(assignment => {
+        const mergeGroup = getMergeGroup(assignment.destination);
+        if (!locationGroups[mergeGroup]) {
+          locationGroups[mergeGroup] = [];
+        }
+        locationGroups[mergeGroup].push(assignment);
+      });
+
+      // 合并每个地点组
+      Object.entries(locationGroups).forEach(([groupName, groupAssignments]) => {
+        if (groupAssignments.length === 1) {
+          // 单个地点，直接添加
+          mergedAssignments.push(groupAssignments[0]);
+        } else {
+          // 多个地点需要合并
+          const baseAssignment = groupAssignments[0];
+          
+          // 合并数据
+          const mergedAssignment = {
+            ...baseAssignment,
+            id: `merged_${baseAssignment.guide?.guideId}_${groupName}`, // 生成唯一ID
+            destination: groupName,
+            // 合并游客数量
+            totalPeople: groupAssignments.reduce((sum, a) => sum + (a.totalPeople || 0), 0),
+            adultCount: groupAssignments.reduce((sum, a) => sum + (a.adultCount || 0), 0),
+            childCount: groupAssignments.reduce((sum, a) => sum + (a.childCount || 0), 0),
+            // 合并具体地点信息（用于显示详情）
+            mergedDestinations: groupAssignments.map(a => a.destination),
+            originalAssignments: groupAssignments, // 保留原始数据
+            isMerged: true, // 标记为合并记录
+            // 合并特殊要求
+            specialRequirements: [...new Set(
+              groupAssignments.flatMap(a => a.specialRequirements || [])
+            )],
+            // 合并备注
+            remarks: groupAssignments
+              .map(a => a.remarks)
+              .filter(r => r && r.trim())
+              .join('; ') || null
+          };
+
+          console.log(`🔄 合并地点: ${groupAssignments.map(a => a.destination).join(' + ')} → ${groupName}`, {
+            导游: baseAssignment.guide?.guideName,
+            原始记录数: groupAssignments.length,
+            合并后人数: mergedAssignment.totalPeople
+          });
+
+          mergedAssignments.push(mergedAssignment);
+        }
+      });
+    });
+
+    return mergedAssignments;
+  };
 
   // 获取指定日期的分配记录
   const fetchAssignments = async () => {
@@ -25,7 +127,24 @@ const AssignmentTable = () => {
       const response = await tourAssignmentAPI.getAssignmentsByDate(dateStr);
       
       if (response.code === 1) {
-        setAssignments(response.data || []);
+        const originalAssignments = response.data || [];
+        
+        let finalAssignments = originalAssignments;
+        
+        if (enableMerge) {
+          // 应用智能合并逻辑
+          finalAssignments = mergeAssignmentsByGuideAndLocation(originalAssignments);
+          
+          console.log('📊 地点合并统计:', {
+            原始记录数: originalAssignments.length,
+            合并后记录数: finalAssignments.length,
+            节省记录数: originalAssignments.length - finalAssignments.length
+          });
+        } else {
+          console.log('📊 地点合并已禁用，显示原始记录:', originalAssignments.length);
+        }
+        
+        setAssignments(finalAssignments);
       } else {
         message.error(response.msg || '获取分配记录失败');
       }
@@ -50,8 +169,33 @@ const AssignmentTable = () => {
       title: '目的地',
       dataIndex: 'destination',
       key: 'destination',
-      width: 120,
-      align: 'center'
+      width: 150,
+      align: 'center',
+      render: (destination, record) => (
+        <div>
+          <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
+            {destination}
+          </div>
+          {record.isMerged && record.mergedDestinations && (
+            <div style={{ 
+              fontSize: '11px', 
+              color: '#666', 
+              marginTop: '2px',
+              background: '#f0f9ff',
+              padding: '2px 4px',
+              borderRadius: '3px',
+              border: '1px solid #e0f2fe'
+            }}>
+              合并: {record.mergedDestinations.join(' + ')}
+            </div>
+          )}
+          {record.isMerged && (
+            <Tag size="small" color="blue" style={{ marginTop: '2px' }}>
+              已合并 ({record.originalAssignments?.length || 0})
+            </Tag>
+          )}
+        </div>
+      )
     },
     {
       title: '导游信息',
@@ -88,11 +232,11 @@ const AssignmentTable = () => {
     {
       title: '游客人数',
       key: 'peopleInfo',
-      width: 100,
+      width: 120,
       align: 'center',
       render: (_, record) => (
         <div>
-          <div style={{ fontWeight: 'bold', fontSize: '16px' }}>
+          <div style={{ fontWeight: 'bold', fontSize: '16px', color: record.isMerged ? '#1890ff' : '#000' }}>
             {record.totalPeople}人
           </div>
           <div style={{ fontSize: '12px', color: '#666' }}>
@@ -101,6 +245,16 @@ const AssignmentTable = () => {
           <div style={{ fontSize: '12px', color: '#666' }}>
             儿童: {record.childCount}
           </div>
+          {record.isMerged && (
+            <div style={{ 
+              fontSize: '10px', 
+              color: '#1890ff',
+              marginTop: '2px',
+              fontStyle: 'italic'
+            }}>
+              合并总数
+            </div>
+          )}
         </div>
       )
     },
@@ -185,9 +339,23 @@ const AssignmentTable = () => {
       title: '备注',
       dataIndex: 'remarks',
       key: 'remarks',
-      width: 100,
+      width: 120,
       ellipsis: true,
-      render: (text) => text || '-'
+      render: (text, record) => (
+        <div>
+          {text || '-'}
+          {record.isMerged && record.originalAssignments?.length > 1 && (
+            <div style={{ 
+              fontSize: '10px', 
+              color: '#666',
+              marginTop: '2px',
+              fontStyle: 'italic'
+            }}>
+              来自{record.originalAssignments.length}个原始记录
+            </div>
+          )}
+        </div>
+      )
     }
   ];
 
@@ -260,6 +428,20 @@ const AssignmentTable = () => {
                   onChange={setSelectedDate}
                   format="YYYY年MM月DD日"
                 />
+                <Tooltip 
+                  title="启用后，同一导游的相似地点（如：亚瑟港+亚瑟港迅游，玛丽亚岛+酒杯湾）将智能合并为一个单子"
+                  placement="top"
+                >
+                  <Space>
+                    <MergeCellsOutlined style={{ color: enableMerge ? '#1890ff' : '#ccc' }} />
+                    <span>智能合并：</span>
+                    <Switch 
+                      checked={enableMerge}
+                      onChange={setEnableMerge}
+                      size="small"
+                    />
+                  </Space>
+                </Tooltip>
               </Space>
             </div>
           </div>

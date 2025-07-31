@@ -1,0 +1,269 @@
+.hotel-customer-statistics {
+  padding: 24px;
+  
+  // 非打印区域（搜索表单等）
+  .no-print {
+    margin-bottom: 24px;
+  }
+  
+  // 打印区域
+  .print-area {
+    margin-top: 24px;
+    
+    .print-header {
+      margin-bottom: 24px;
+      
+      .ant-typography h3 {
+        font-size: 24px;
+        font-weight: 600;
+        color: #262626;
+        margin-bottom: 24px;
+      }
+    }
+    
+    // 分配表格样式
+    .assignment-table {
+      border: 2px solid #d9d9d9;
+      
+      .ant-table-thead > tr > th {
+        background-color: #fafafa;
+        font-weight: 600;
+        font-size: 14px;
+        text-align: center;
+        padding: 12px 8px;
+        border: 1px solid #d9d9d9;
+      }
+      
+      .ant-table-tbody > tr > td {
+        padding: 8px;
+        border: 1px solid #d9d9d9;
+        vertical-align: middle;
+      }
+      
+      // 导游标题行样式
+      .guide-header-row {
+        background-color: #f0f9ff;
+        
+        td {
+          font-weight: 600;
+          background-color: #f0f9ff !important;
+          
+          // 导游名称单元格特殊样式
+          &:nth-child(3) {
+            text-align: center;
+          }
+        }
+      }
+      
+      // 客人信息行样式
+      .customer-row {
+        &:hover td {
+          background-color: #f5f5f5 !important;
+        }
+        
+        td {
+          &:nth-child(4) { // 人数列
+            text-align: center;
+          }
+        }
+      }
+    }
+  }
+
+  .statistics-result {
+    margin-top: 24px;
+    
+    .stat-item {
+      text-align: center;
+      
+      .stat-label {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 8px;
+      }
+      
+      .stat-value {
+        font-size: 18px;
+        font-weight: 500;
+        color: #333;
+        
+        &.stat-number {
+          font-size: 24px;
+          font-weight: 600;
+          color: #1890ff;
+        }
+      }
+    }
+    
+    .guide-groups-card {
+      margin-top: 24px;
+      
+      .panel-header {
+        .ant-space {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+      }
+      
+      .customer-table {
+        .ant-table-thead > tr > th {
+          background-color: #fafafa;
+          font-weight: 600;
+        }
+        
+        .ant-table-tbody > tr > td {
+          padding: 8px 16px;
+        }
+        
+        .ant-table-tbody > tr:hover > td {
+          background-color: #f5f5f5;
+        }
+      }
+    }
+  }
+
+  // 响应式设计
+  @media (max-width: 1200px) {
+    .statistics-result {
+      .ant-col {
+        margin-bottom: 16px;
+      }
+    }
+    
+    .assignment-table {
+      .ant-table-scroll {
+        min-width: 1000px;
+      }
+    }
+  }
+
+  @media (max-width: 768px) {
+    padding: 16px;
+    
+    .ant-form-inline .ant-form-item {
+      display: block;
+      margin-bottom: 16px;
+      
+      .ant-form-item-control-input {
+        width: 100%;
+      }
+    }
+    
+    .statistics-result {
+      .ant-col {
+        span: 12;
+      }
+    }
+  }
+
+  // 打印样式
+  @media print {
+    padding: 0;
+    
+    // 隐藏非打印元素
+    .no-print {
+      display: none !important;
+    }
+    
+    // 打印区域样式
+    .print-area {
+      margin: 0;
+      
+      .print-header {
+        margin-bottom: 20px;
+        page-break-inside: avoid;
+        
+        .ant-typography h3 {
+          font-size: 18px;
+          margin-bottom: 16px;
+          text-align: center;
+        }
+        
+        .ant-row {
+          margin-bottom: 16px;
+          
+          .ant-col {
+            font-size: 12px;
+          }
+        }
+      }
+      
+      .assignment-table {
+        border: 2px solid #000;
+        
+        .ant-table {
+          font-size: 11px;
+        }
+        
+        .ant-table-thead > tr > th {
+          background-color: #f0f0f0 !important;
+          -webkit-print-color-adjust: exact;
+          color-adjust: exact;
+          font-weight: 700;
+          font-size: 11px;
+          padding: 6px 4px;
+          border: 1px solid #000;
+          text-align: center;
+        }
+        
+        .ant-table-tbody > tr > td {
+          padding: 4px;
+          font-size: 10px;
+          border: 1px solid #000;
+          line-height: 1.2;
+        }
+        
+        // 导游标题行打印样式
+        .guide-header-row td {
+          background-color: #e6f7ff !important;
+          -webkit-print-color-adjust: exact;
+          color-adjust: exact;
+          font-weight: 700;
+          font-size: 11px;
+        }
+        
+        // 避免在导游标题行处分页
+        .guide-header-row {
+          page-break-inside: avoid;
+          page-break-after: avoid;
+        }
+        
+        .customer-row {
+          page-break-inside: avoid;
+        }
+      }
+      
+      // 避免孤立行
+      .ant-table-tbody > tr {
+        page-break-inside: avoid;
+      }
+    }
+    
+    // 移除所有Ant Design的阴影和边框样式以节省墨水
+    .ant-card {
+      border: none !important;
+      box-shadow: none !important;
+    }
+    
+    .ant-table-container {
+      border: none;
+    }
+  }
+  
+  // 导游选择器样式
+  .ant-radio-group {
+    .ant-radio-button-wrapper {
+      border-radius: 6px;
+      margin-right: 8px;
+      
+      &:first-child {
+        border-radius: 6px;
+      }
+      
+      &:last-child {
+        border-radius: 6px;
+      }
+    }
+  }
+} 

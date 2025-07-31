@@ -23,6 +23,7 @@ import {
 } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 import { addEmp, getEmpById, updateEmp } from "@/apis/Employee";
+import AvatarUpload from "@/components/AvatarUpload";
 import "./AddEmployee.scss";
 
 const { Option } = Select;
@@ -33,6 +34,7 @@ const AddEmployee = () => {
   const { id } = useParams();
   const [loading, setLoading] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState('');
   const navigate = useNavigate();
 
   // 获取员工信息
@@ -44,6 +46,7 @@ const AddEmployee = () => {
       const response = await getEmpById(id);
       if (response.code === 1) {
         form.setFieldsValue(response.data);
+        setAvatarUrl(response.data.avatar || '');
         setIsEdit(true);
       } else {
         message.error("获取员工信息失败");
@@ -67,7 +70,8 @@ const AddEmployee = () => {
       // 确保状态字段不会变为null
       const formData = {
         ...values,
-        status: values.status === undefined ? 1 : values.status // 默认为启用状态
+        status: values.status === undefined ? 1 : values.status, // 默认为启用状态
+        avatar: avatarUrl // 包含头像URL
       };
       
       let response;
@@ -94,6 +98,11 @@ const AddEmployee = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 头像变化处理
+  const handleAvatarChange = (url) => {
+    setAvatarUrl(url);
   };
 
   // 角色选项
@@ -203,12 +212,24 @@ const AddEmployee = () => {
                 rules={[{ required: true, message: "请选择性别" }]}
               >
                 <Radio.Group>
-                  <Radio value="1">男</Radio>
+                  <Radio value="1">男</Radio>  
                   <Radio value="0">女</Radio>
                 </Radio.Group>
               </Form.Item>
             </Col>
             
+            <Col span={12}>
+              <Form.Item label="头像">
+                <AvatarUpload
+                  avatarUrl={avatarUrl}
+                  onAvatarChange={handleAvatarChange}
+                  size={100}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={24}>
             <Col span={12}>
               <Form.Item
                 name="status"

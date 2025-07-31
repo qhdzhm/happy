@@ -35,10 +35,17 @@ import {
   batchDeleteHotelBookings,
   updateHotelBookingStatus,
   batchUpdateHotelBookingStatus,
-  getHotelBookingStats
+  getHotelBookingStats,
+  getHotelBookingsByTourBookingId
 } from '@/apis/hotel'
+import { getSchedulesByBookingId, saveBatchSchedules } from '@/api/tourSchedule'
 import dayjs from 'dayjs'
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter'
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
 import HotelEmailModal from '../../components/HotelEmailModal/HotelEmailModal'
+
+dayjs.extend(isSameOrAfter)
+dayjs.extend(isSameOrBefore)
 
 const { RangePicker } = DatePicker
 const { Option } = Select
@@ -67,16 +74,15 @@ const HotelBookingList = () => {
     checkOutDate: null
   })
 
-  // 状态选项配置
+  // 状态选项配置（与后端ENUM保持一致）
   const statusOptions = [
     { value: 'pending', label: '待处理', color: 'orange' },
-    { value: 'email_sending', label: '邮件发送中', color: 'processing' },
     { value: 'email_sent', label: '已发送邮件', color: 'blue' },
-    { value: 'email_failed', label: '邮件发送失败', color: 'volcano' },
     { value: 'confirmed', label: '已确认', color: 'green' },
     { value: 'checked_in', label: '已入住', color: 'purple' },
     { value: 'checked_out', label: '已退房', color: 'default' },
     { value: 'cancelled', label: '已取消', color: 'red' },
+    { value: 'no_show', label: '未出现', color: 'volcano' },
     { value: 'rescheduled', label: '重新安排', color: 'cyan' }
   ]
 
@@ -100,19 +106,13 @@ const HotelBookingList = () => {
       case 'pending':
         actions.push(
           { key: 'sendEmail', label: '发送邮件', type: 'primary' },
+          { key: 'changeStatus', label: '修改状态', type: 'default' },
           { key: 'edit', label: '编辑', type: 'default' },
           { key: 'cancel', label: '取消', type: 'warning' },
           { key: 'delete', label: '删除', type: 'danger' }
         )
         break
         
-      case 'email_sending':
-        actions.push(
-          { key: 'view', label: '查看', type: 'default' },
-          { key: 'cancel', label: '取消', type: 'warning' }
-        )
-        break
-
       case 'email_sent':
         actions.push(
           { key: 'confirm', label: '确认预订', type: 'primary' },
@@ -123,20 +123,11 @@ const HotelBookingList = () => {
           { key: 'delete', label: '删除', type: 'danger' }
         )
         break
-
-      case 'email_failed':
-        actions.push(
-          { key: 'resendEmail', label: '重新发送邮件', type: 'primary' },
-          { key: 'edit', label: '编辑', type: 'default' },
-          { key: 'changeStatus', label: '修改状态', type: 'default' },
-          { key: 'cancel', label: '取消', type: 'warning' },
-          { key: 'delete', label: '删除', type: 'danger' }
-        )
-        break
         
       case 'confirmed':
         actions.push(
           { key: 'checkIn', label: '办理入住', type: 'primary' },
+          { key: 'changeStatus', label: '修改状态', type: 'default' },
           { key: 'edit', label: '编辑', type: 'default' },
           { key: 'cancel', label: '取消', type: 'warning' },
           { key: 'delete', label: '删除', type: 'danger' }
@@ -146,6 +137,7 @@ const HotelBookingList = () => {
       case 'checked_in':
         actions.push(
           { key: 'checkOut', label: '办理退房', type: 'primary' },
+          { key: 'changeStatus', label: '修改状态', type: 'default' },
           { key: 'view', label: '查看', type: 'default' },
           { key: 'delete', label: '删除', type: 'danger' }
         )
@@ -153,9 +145,11 @@ const HotelBookingList = () => {
         
       case 'checked_out':
       case 'cancelled':
+      case 'no_show':
       case 'rescheduled':
         actions.push(
           { key: 'view', label: '查看', type: 'default' },
+          { key: 'changeStatus', label: '修改状态', type: 'default' },
           { key: 'delete', label: '删除', type: 'danger' }
         )
         break
@@ -170,6 +164,156 @@ const HotelBookingList = () => {
     return actions
   }
 
+  // 更新排团表的接送信息（基于已确认的酒店预订）
+  const updateScheduleTransfers = async (tourBookingId) => {
+    try {
+      console.log('🚀 [酒店管理页面] 开始更新排团表接送信息，订单ID:', tourBookingId);
+      
+      // 获取该订单的所有酒店预订
+      const hotelResponse = await getHotelBookingsByTourBookingId(tourBookingId);
+      if (hotelResponse?.code !== 1 || !hotelResponse?.data?.length) {
+        console.log('📝 [酒店管理页面] 没有找到酒店预订数据');
+        return;
+      }
+
+      // 获取排团表数据
+      const scheduleResponse = await getSchedulesByBookingId(tourBookingId);
+      if (scheduleResponse?.code !== 1 || !scheduleResponse?.data?.length) {
+        console.log('📝 [酒店管理页面] 没有找到排团表数据');
+        return;
+      }
+
+      const schedules = scheduleResponse.data.sort((a, b) => dayjs(a.tourDate).diff(dayjs(b.tourDate)));
+      
+      // 只使用已确认的酒店预订
+      const confirmedBookings = hotelResponse.data.filter(b => b.bookingStatus === 'confirmed');
+      
+      if (confirmedBookings.length === 0) {
+        console.log('📝 [酒店管理页面] 没有已确认的酒店预订，跳过接送信息更新');
+        return;
+      }
+
+      // 按日期排序已确认的酒店预订
+      const sortedBookings = [...confirmedBookings].sort((a, b) => dayjs(a.checkInDate).diff(dayjs(b.checkInDate)));
+      
+      console.log('🏨 [酒店管理页面] 已确认的酒店预订:', sortedBookings.map(b => ({
+        id: b.id,
+        name: b.hotelName,
+        checkIn: dayjs(b.checkInDate).format('YYYY-MM-DD'),
+        checkOut: dayjs(b.checkOutDate).format('YYYY-MM-DD'),
+        address: b.hotelAddress || b.hotelName
+      })));
+
+      console.log('📅 [酒店管理页面] 行程日期:', schedules.map(s => dayjs(s.tourDate).format('YYYY-MM-DD')));
+
+      const updatedSchedules = [];
+
+      schedules.forEach(schedule => {
+        const scheduleDate = dayjs(schedule.tourDate);
+        const isFirstDay = scheduleDate.isSame(dayjs(schedules[0].tourDate));
+        const isLastDay = scheduleDate.isSame(dayjs(schedules[schedules.length - 1].tourDate));
+        
+        let pickup = '未指定';
+        let dropoff = '未指定';
+
+        console.log(`\n🔍 [酒店管理页面] 处理日期: ${scheduleDate.format('YYYY-MM-DD')} (第一天: ${isFirstDay}, 最后一天: ${isLastDay})`);
+
+        if (isFirstDay) {
+          // 第一天：机场接 → 当天入住的酒店送
+          pickup = '机场';
+          
+          // 找到在当天或之前入住，且在当天之后退房的酒店
+          const todayHotel = sortedBookings.find(booking => {
+            const checkIn = dayjs(booking.checkInDate);
+            const checkOut = dayjs(booking.checkOutDate);
+            const isCheckInOnOrBefore = checkIn.isSameOrBefore(scheduleDate, 'day');
+            const isCheckOutAfter = checkOut.isAfter(scheduleDate, 'day');
+            
+            console.log(`  🏨 检查酒店 ${booking.hotelName}: 入住${checkIn.format('MM-DD')} <= ${scheduleDate.format('MM-DD')}? ${isCheckInOnOrBefore}, 退房${checkOut.format('MM-DD')} > ${scheduleDate.format('MM-DD')}? ${isCheckOutAfter}`);
+            
+            return isCheckInOnOrBefore && isCheckOutAfter;
+          });
+          
+          dropoff = todayHotel ? (todayHotel.hotelAddress || todayHotel.hotelName) : '酒店';
+          console.log(`  ✅ 第一天接送: 机场 → ${dropoff}`);
+        } else if (isLastDay) {
+          // 最后一天：从当天退房的酒店接 → 机场送
+          
+          // 找到在当天退房的酒店，或者在当天之前入住且没有在当天之前退房的酒店
+          const checkoutHotel = sortedBookings.find(booking => {
+            const checkIn = dayjs(booking.checkInDate);
+            const checkOut = dayjs(booking.checkOutDate);
+            const isCheckOutToday = checkOut.isSame(scheduleDate, 'day');
+            const isStayingThroughToday = checkIn.isBefore(scheduleDate, 'day') && checkOut.isAfter(scheduleDate, 'day');
+            
+            console.log(`  🏨 检查酒店 ${booking.hotelName}: 今天退房${checkOut.format('MM-DD')} = ${scheduleDate.format('MM-DD')}? ${isCheckOutToday}, 住宿覆盖今天? ${isStayingThroughToday}`);
+            
+            return isCheckOutToday || isStayingThroughToday;
+          });
+          
+          pickup = checkoutHotel ? (checkoutHotel.hotelAddress || checkoutHotel.hotelName) : '酒店';
+          dropoff = '机场';
+          console.log(`  ✅ 最后一天接送: ${pickup} → 机场`);
+        } else {
+          // 中间天：从昨晚住的酒店接 → 今晚住的酒店送
+          
+          // 找到昨晚住的酒店（昨天入住，今天之后退房）
+          const yesterday = scheduleDate.subtract(1, 'day');
+          const prevHotel = sortedBookings.find(booking => {
+            const checkIn = dayjs(booking.checkInDate);
+            const checkOut = dayjs(booking.checkOutDate);
+            const isCheckInOnOrBeforeYesterday = checkIn.isSameOrBefore(yesterday, 'day');
+            const isCheckOutAfterYesterday = checkOut.isAfter(yesterday, 'day');
+            
+            console.log(`  🏨 检查昨晚酒店 ${booking.hotelName}: 入住${checkIn.format('MM-DD')} <= ${yesterday.format('MM-DD')}? ${isCheckInOnOrBeforeYesterday}, 退房${checkOut.format('MM-DD')} > ${yesterday.format('MM-DD')}? ${isCheckOutAfterYesterday}`);
+            
+            return isCheckInOnOrBeforeYesterday && isCheckOutAfterYesterday;
+          });
+          
+          // 找到今晚住的酒店（今天入住，明天之后退房）
+          const tonightHotel = sortedBookings.find(booking => {
+            const checkIn = dayjs(booking.checkInDate);
+            const checkOut = dayjs(booking.checkOutDate);
+            const isCheckInOnOrBeforeToday = checkIn.isSameOrBefore(scheduleDate, 'day');
+            const isCheckOutAfterToday = checkOut.isAfter(scheduleDate, 'day');
+            
+            console.log(`  🏨 检查今晚酒店 ${booking.hotelName}: 入住${checkIn.format('MM-DD')} <= ${scheduleDate.format('MM-DD')}? ${isCheckInOnOrBeforeToday}, 退房${checkOut.format('MM-DD')} > ${scheduleDate.format('MM-DD')}? ${isCheckOutAfterToday}`);
+            
+            return isCheckInOnOrBeforeToday && isCheckOutAfterToday;
+          });
+          
+          pickup = prevHotel ? (prevHotel.hotelAddress || prevHotel.hotelName) : '酒店';
+          dropoff = tonightHotel ? (tonightHotel.hotelAddress || tonightHotel.hotelName) : '酒店';
+          console.log(`  ✅ 中间天接送: ${pickup} → ${dropoff}`);
+        }
+
+        updatedSchedules.push({
+          ...schedule,
+          pickupLocation: pickup,
+          dropoffLocation: dropoff
+        });
+        
+        console.log(`📝 [酒店管理页面] ${scheduleDate.format('YYYY-MM-DD')} - 接: ${pickup}, 送: ${dropoff}`);
+      });
+
+      if (updatedSchedules.length > 0) {
+        console.log('💾 [酒店管理页面] 准备保存接送信息:', updatedSchedules.map(s => ({
+          date: dayjs(s.tourDate).format('YYYY-MM-DD'),
+          pickup: s.pickupLocation,
+          dropoff: s.dropoffLocation
+        })));
+        
+        await saveBatchSchedules({
+          bookingId: tourBookingId,
+          schedules: updatedSchedules
+        });
+        console.log('✅ [酒店管理页面] 接送信息更新成功');
+      }
+    } catch (error) {
+      console.error('❌ [酒店管理页面] 更新排团表接送信息失败:', error);
+    }
+  };
+
   // 状态修改处理
   const handleStatusChange = (record, newStatus) => {
     Modal.confirm({
@@ -179,6 +323,22 @@ const HotelBookingList = () => {
         try {
           await updateHotelBookingStatus(record.id, newStatus)
           message.success('状态修改成功')
+          
+          console.log('🔍 [酒店管理页面] 状态更新调试信息:', {
+            newStatus,
+            recordId: record.id,
+            tourBookingId: record.tourBookingId,
+            record: record
+          });
+          
+          // 如果状态改为已确认，且该预订属于某个旅游订单，则更新接送信息
+          if (newStatus === 'confirmed' && record.tourBookingId) {
+            console.log('🏨 [酒店管理页面] 酒店已确认，开始更新接送信息, 旅游订单ID:', record.tourBookingId);
+            await updateScheduleTransfers(record.tourBookingId);
+          } else if (newStatus === 'confirmed' && !record.tourBookingId) {
+            console.warn('⚠️ [酒店管理页面] 酒店已确认，但没有关联的旅游订单ID，无法更新接送信息');
+          }
+          
           fetchData()
         } catch (error) {
           message.error('状态修改失败')
@@ -650,8 +810,9 @@ const HotelBookingList = () => {
       onOk: async () => {
         try {
           const response = await batchDeleteHotelBookings(selectedRowKeys)
+          console.log('批量删除响应:', response)
           if (response.code === 1) {
-            message.success('批量删除成功')
+            message.success(response.msg || response.data || '批量删除成功')
             setSelectedRowKeys([])
             fetchData()
             fetchStats()
@@ -660,7 +821,7 @@ const HotelBookingList = () => {
           }
         } catch (error) {
           console.error('批量删除失败:', error)
-          message.error('批量删除失败')
+          message.error('批量删除失败: ' + (error.response?.data?.msg || error.message || '未知错误'))
         }
       }
     })
@@ -682,6 +843,21 @@ const HotelBookingList = () => {
           const response = await batchUpdateHotelBookingStatus(selectedRowKeys, status)
           if (response.code === 1) {
             message.success('批量更新状态成功')
+            
+            // 如果状态改为已确认，需要更新相关订单的接送信息
+            if (status === 'confirmed') {
+              // 获取选中记录中有tourBookingId的记录
+              const selectedRecords = data.filter(record => selectedRowKeys.includes(record.id));
+              const tourBookingIds = [...new Set(selectedRecords.filter(r => r.tourBookingId).map(r => r.tourBookingId))];
+              
+              console.log('🏨 [酒店管理页面] 批量确认酒店，需要更新接送信息的旅游订单ID:', tourBookingIds);
+              
+              // 为每个相关的旅游订单更新接送信息
+              for (const tourBookingId of tourBookingIds) {
+                await updateScheduleTransfers(tourBookingId);
+              }
+            }
+            
             setSelectedRowKeys([])
             fetchData()
             fetchStats()

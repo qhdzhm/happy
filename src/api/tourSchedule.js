@@ -107,3 +107,69 @@ export function getSchedulesByContactPerson(contactPerson) {
   });
 }
 
+/**
+ * 获取可选的一日游产品列表（用于额外行程）
+ * @returns {Promise}
+ */
+export const getAvailableDayTours = () => {
+  return request({
+    url: '/admin/tour/schedule/day-tours',
+    method: 'get'
+  });
+};
+
+/**
+ * 删除行程排序
+ * @param {number} scheduleId 行程排序ID
+ * @returns {Promise} 删除结果
+ */
+export function deleteSchedule(scheduleId) {
+  return request({
+    url: `/admin/tour/schedule/${scheduleId}`,
+    method: 'delete'
+  });
+}
+
+/**
+ * 更新导游备注
+ * @param {number} scheduleId 行程排序ID
+ * @param {string} guideRemarks 导游备注
+ * @returns {Promise} 更新结果
+ */
+export function updateGuideRemarks(scheduleId, guideRemarks) {
+  return request({
+    url: `/admin/tour/schedule/${scheduleId}/guide-remarks`,
+    method: 'put',
+    data: guideRemarks,
+    headers: {
+      'Content-Type': 'text/plain'
+    }
+  });
+}
+
+/**
+ * 根据订单ID获取乘客信息
+ * @param {number} bookingId 订单ID
+ * @returns {Promise} 乘客信息列表
+ */
+export function getPassengersByBookingId(bookingId) {
+  return request({
+    url: `/admin/passengers/booking/${bookingId}`,
+    method: 'get'
+  });
+}
+
+/**
+ * 根据酒店名称和日期统计住在该酒店的所有客人
+ * @param {string} hotelName 酒店名称
+ * @param {string} tourDate 旅游日期 (YYYY-MM-DD格式)
+ * @returns {Promise} 酒店客人统计信息
+ */
+export function getHotelCustomerStatistics(hotelName, tourDate) {
+  return request({
+    url: '/admin/tour/schedule/hotel-statistics',
+    method: 'get',
+    params: { hotelName, tourDate }
+  });
+}
+

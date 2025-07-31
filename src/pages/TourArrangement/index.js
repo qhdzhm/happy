@@ -8,60 +8,15 @@ import ColorLegend from './components/ColorLegend';
 import UILegend from './components/UILegend';
 import { getOrderList } from '@/apis/orderApi';
 import { getSchedulesByDateRange, getSchedulesByBookingId, saveBatchSchedules, getSchedulesByOrderNumber, getSchedulesByContactPerson } from '@/api/tourSchedule';
+
 import request from '@/utils/request';
 import './index.scss';
 
+// 🎨 引入统一的颜色管理工具
+import { getLocationColor } from '@/utils/colorUtils';
+
 const { RangePicker } = DatePicker;
 const { Option } = Select;
-
-// 添加公共的颜色生成函数
-const getLocationColor = (locationName) => {
-  // 常见地点固定颜色映射，同一地点使用统一颜色
-  const locationColors = {
-    '霍巴特': '#13c2c2',
-    '朗塞斯顿': '#722ed1',
-    '摇篮山': '#7b68ee',
-    '酒杯湾': '#ff9c6e',
-    '亚瑟港': '#dc3545',
-    '布鲁尼岛': '#87d068',
-    '惠灵顿山': '#f56a00',
-    '塔斯马尼亚': '#1890ff',
-    '菲欣纳': '#3f8600',
-    '菲欣纳国家公园': '#3f8600',
-    '一日游': '#108ee9',
-    '跟团游': '#fa8c16',
-    '待安排': '#bfbfbf',
-    '塔斯曼半岛': '#ff4d4f',
-    '玛丽亚岛': '#ffaa00',
-    '摩恩谷': '#9254de',
-    '菲尔德山': '#237804',
-    '非常湾': '#5cdbd3',
-    '卡尔德': '#096dd9'
-  };
-  
-  // 优先进行精确匹配
-  if (locationColors[locationName]) {
-    return locationColors[locationName];
-  }
-  
-  // 查找包含关键词的地点名称
-  for (const key in locationColors) {
-    if (locationName.includes(key)) {
-      return locationColors[key];
-    }
-  }
-  
-  // 如果没有匹配的固定颜色，使用哈希算法生成一致的颜色
-  const hashCode = locationName.split('').reduce((acc, char) => {
-    return char.charCodeAt(0) + ((acc << 5) - acc);
-  }, 0);
-  
-  const h = Math.abs(hashCode) % 360;
-  const s = 70 + Math.abs(hashCode % 20); // 70-90%饱和度
-  const l = 55 + Math.abs((hashCode >> 4) % 15); // 55-70%亮度
-  
-  return `hsl(${h}, ${s}%, ${l}%)`;
-};
 
 // 将颜色函数设置为全局可访问
 window.getLocationColor = getLocationColor;
@@ -101,6 +56,8 @@ const TourArrangement = () => {
   const [searchKeyword, setSearchKeyword] = useState(''); // 通用搜索关键词
   const [showSearchModal, setShowSearchModal] = useState(false); // 是否显示搜索结果弹窗
   const [searchResults, setSearchResults] = useState([]); // 搜索结果
+
+
 
 
   // 重置日期到当前月份附近
@@ -351,8 +308,8 @@ const TourArrangement = () => {
       const dateStr = schedule.tourDate;
       const locationName = schedule.title || '待安排';
       
-      // 优先使用数据库中保存的颜色，如果没有则使用统一的颜色生成函数
-      const locationColor = schedule.color || getLocationColor(locationName);
+      // 🎨 使用统一的颜色生成函数，根据地点名称生成颜色
+      const locationColor = getLocationColor(locationName);
       
       // 更新日期内容
       order.dates[dateStr] = {
@@ -725,9 +682,9 @@ const TourArrangement = () => {
             // 获取tourType
             const tourType = group.type || location.tourType || locationInfo.tourType || orderInfo.tourType || 'group_tour';
             
-            // 获取颜色 - 优先使用已有颜色，如果没有则生成新颜色
+            // 🎨 使用统一的颜色生成函数，根据地点名称生成颜色
             const locationName = location.name || locationInfo.name || '待安排';
-            const color = location.color || locationInfo.color || getLocationColor(locationName);
+            const color = getLocationColor(locationName);
             
             // 计算基于行程起始日期的相对天数
             const tourStartDate = sortedDates[0]; // 行程第一天
@@ -792,6 +749,7 @@ const TourArrangement = () => {
       setLoading(false);
     }
   };
+
 
 
 
@@ -995,6 +953,7 @@ const TourArrangement = () => {
               loading={loading}
               dateRange={dateRange}
               onUpdate={handleSaveArrangement}
+              onDataRefresh={fetchScheduleData}
             />
           </>
         )}
@@ -1008,8 +967,11 @@ const TourArrangement = () => {
         searchType={searchType}
         searchKeyword={searchKeyword}
       />
+
+
     </div>
   );
 };
 
 export default TourArrangement; 
+

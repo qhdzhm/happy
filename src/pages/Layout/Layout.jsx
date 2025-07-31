@@ -16,11 +16,11 @@ const Layout = () => {
 
   // 🔔 启动WebSocket连接
   useEffect(() => {
-    // 使用管理员ID (默认为1，在实际应用中应该从用户登录信息获取)
-    const adminId = localStorage.getItem('adminId') || '1';
+    // 🔥 修复：使用当前登录员工的ID
+    const currentEmployeeId = localStorage.getItem('empId') || localStorage.getItem('employeeId') || localStorage.getItem('adminId') || '1';
     
-    console.log('🚀 启动管理后台WebSocket连接...');
-    adminWebSocketService.connect(adminId);
+    console.log('🚀 启动管理后台WebSocket连接，员工ID:', currentEmployeeId);
+    adminWebSocketService.connect(currentEmployeeId);
 
     // 将WebSocket实例挂载到window对象上，供其他组件使用
     window.adminWebSocket = adminWebSocketService;

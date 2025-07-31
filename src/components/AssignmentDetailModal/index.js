@@ -523,6 +523,8 @@ const AssignmentDetailModal = ({
                 <span>🗓️ 行程提醒：当前为各订单的第{bookingDetails[0].dayNumber}天行程。接送地点已根据行程天数自动判断。</span>
               </div>
             )}
+
+
           </>
         ) : (
           <div className="no-data">
@@ -530,6 +532,8 @@ const AssignmentDetailModal = ({
           </div>
         )}
       </Spin>
+
+
     </Modal>
   );
 };

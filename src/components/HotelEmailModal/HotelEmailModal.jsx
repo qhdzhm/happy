@@ -62,6 +62,44 @@ Travel Consultant
 Happy Tassie Holiday`;
   };
 
+  // WebSocket邮件状态监听器 - 必须在其他useEffect之前定义
+  const handleEmailStatus = useCallback((data) => {
+    console.log('收到邮件状态更新:', data);
+    if (data.data && data.data.bookingId === bookingData?.id) {
+      const { status, message: statusMessage, error } = data.data;
+      
+      // 🔥 清除超时定时器（如果存在）
+      if (window.emailTimeoutRef) {
+        clearTimeout(window.emailTimeoutRef);
+        window.emailTimeoutRef = null;
+      }
+      
+      switch (status) {
+        case 'success':
+          setLoading(false);
+          message.success('邮件发送成功！');
+          onSuccess && onSuccess();
+          onCancel();
+          break;
+        case 'failed':
+          setLoading(false);
+          message.error(`邮件发送失败：${error || statusMessage}`);
+          break;
+        case 'sending':
+          // 保持loading状态，显示发送中
+          message.info('邮件正在发送中，请稍候...');
+          break;
+        default:
+          break;
+      }
+      
+      // 移除监听器
+      if (status === 'success' || status === 'failed') {
+        window.adminWebSocket?.off('message', handleEmailStatus);
+      }
+    }
+  }, [bookingData?.id, onSuccess, onCancel]);
+
   // 初始化表单数据
   useEffect(() => {
     if (visible && bookingData) {
@@ -96,38 +134,6 @@ Happy Tassie Holiday`;
     };
   }, [handleEmailStatus]);
 
-  // WebSocket邮件状态监听器
-  const handleEmailStatus = useCallback((data) => {
-    console.log('收到邮件状态更新:', data);
-    if (data.data && data.data.bookingId === bookingData?.id) {
-      const { status, message: statusMessage, error } = data.data;
-      
-      switch (status) {
-        case 'success':
-          setLoading(false);
-          message.success('邮件发送成功！');
-          onSuccess && onSuccess();
-          onCancel();
-          break;
-        case 'failed':
-          setLoading(false);
-          message.error(`邮件发送失败：${error || statusMessage}`);
-          break;
-        case 'sending':
-          // 保持loading状态，显示发送中
-          message.info('邮件正在发送中，请稍候...');
-          break;
-        default:
-          break;
-      }
-      
-      // 移除监听器
-      if (status === 'success' || status === 'failed') {
-        window.adminWebSocket?.off('message', handleEmailStatus);
-      }
-    }
-  }, [bookingData?.id, onSuccess, onCancel]);
-
   // 发送邮件
   const handleSendEmail = async () => {
     try {
@@ -143,12 +149,21 @@ Happy Tassie Holiday`;
 
       console.log('发送邮件请求:', emailData);
       
+      // 🔥 添加超时兜底机制（30秒）
+      window.emailTimeoutRef = setTimeout(() => {
+        setLoading(false);
+        message.warning('邮件发送超时，但可能仍在后台处理中。请检查预订状态或稍后重试。');
+        window.adminWebSocket?.off('message', handleEmailStatus);
+        window.emailTimeoutRef = null;
+        onCancel();
+      }, 30000);
+      
       // 添加WebSocket监听器
       if (window.adminWebSocket && window.adminWebSocket.isConnected()) {
         window.adminWebSocket.on('message', handleEmailStatus);
       }
       
-      // 发送邮件请求（不设置超时）
+      // 发送邮件请求
       const response = await sendHotelBookingEmail(emailData);
       
       console.log('邮件发送响应:', response);
@@ -156,7 +171,23 @@ Happy Tassie Holiday`;
       if (response.code === 1) {
         message.info('邮件已提交发送，请等待发送完成...');
         // 不立即关闭弹窗，等待WebSocket状态更新
+        
+        // 🔥 如果没有WebSocket连接，直接认为成功
+        if (!window.adminWebSocket || !window.adminWebSocket.isConnected()) {
+          if (window.emailTimeoutRef) {
+            clearTimeout(window.emailTimeoutRef);
+            window.emailTimeoutRef = null;
+          }
+          setLoading(false);
+          message.success('邮件发送请求已提交！');
+          onSuccess && onSuccess();
+          onCancel();
+        }
       } else {
+        if (window.emailTimeoutRef) {
+          clearTimeout(window.emailTimeoutRef);
+          window.emailTimeoutRef = null;
+        }
         setLoading(false);
         message.error(response.msg || '邮件提交失败');
         window.adminWebSocket?.off('message', handleEmailStatus);

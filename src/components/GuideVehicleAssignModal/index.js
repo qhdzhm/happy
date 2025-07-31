@@ -50,6 +50,22 @@ const GuideVehicleAssignModal = ({
     return title;
   }
 
+  // 根据原始地点确定颜色的辅助函数
+  const getLocationColor = (location) => {
+    const colorMap = {
+      '亚': '#1890ff',      // 蓝色 - 亚瑟港含门票
+      '亚(迅)': '#52c41a',  // 绿色 - 亚瑟港迅游
+      '亚(不)': '#fa8c16',  // 橙色 - 亚瑟港不含门票
+      '布': '#722ed1',      // 紫色 - 布鲁尼岛
+      '霍': '#eb2f96',      // 粉色 - 霍巴特
+      '摇': '#13c2c2',      // 青色 - 摇篮山
+      '朗': '#fa541c',      // 红橙 - 朗塞斯顿
+      '玛': '#2f54eb',      // 深蓝 - 玛丽亚岛
+      '酒': '#a0d911'       // 黄绿 - 酒杯湾
+    };
+    return colorMap[location] || '#666';
+  };
+
   useEffect(() => {
     if (visible) {
       console.log('Modal打开，selectedOrders:', selectedOrders);
@@ -690,25 +706,176 @@ const GuideVehicleAssignModal = ({
 
       <Divider />
       
-      <Card title="选中的订单" size="small" style={{ borderRadius: '6px' }}>
-        <div style={{ maxHeight: 150, overflowY: 'auto' }}>
+      <Card 
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>📋 散拼团客人详细信息</span>
+            <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>
+              ({selectedOrders?.length || 0}个订单)
+            </span>
+          </div>
+        } 
+        size="small" 
+        style={{ borderRadius: '6px' }}
+      >
+        <div style={{ maxHeight: 200, overflowY: 'auto' }}>
           {selectedOrders && selectedOrders.length > 0 ? (
-            selectedOrders.map(order => (
-              <Tag 
-                key={order.id} 
-                style={{ 
-                  margin: 4,
+            <div>
+              {/* 如果是合并记录，显示合并信息 */}
+              {selectedOrders.some(order => order.is_from_merged) && (
+                <div style={{
+                  backgroundColor: '#fff2e8',
+                  border: '1px solid #ffd591',
                   borderRadius: '4px',
-                  padding: '4px 8px',
-                  backgroundColor: '#007bff',
-                  color: 'white',
-                  border: '1px solid #007bff',
+                  padding: '8px',
+                  marginBottom: '12px',
                   fontSize: '12px'
-                }}
-              >
-                {order.order_number || `ORDER-${order.id}`} - {order.title || '未知行程'} ({(parseInt(order.adult_count) || 0) + (parseInt(order.child_count) || 0)}人)
+                }}>
+                  <div style={{ fontWeight: 'bold', color: '#d46b08', marginBottom: '4px' }}>
+                    🔄 合并地点提醒
+                  </div>
+                  <div style={{ color: '#8c4a02' }}>
+                    以下客人被合并分配到同一导游，但实际目的地可能不同，请仔细核对：
+                  </div>
+                </div>
+              )}
+              
+              {/* 显示订单列表 */}
+              {selectedOrders.map((order, index) => {
+                const totalPeople = (parseInt(order.adult_count) || 0) + (parseInt(order.child_count) || 0);
+                
+                return (
+                  <div 
+                    key={order.id}
+                    style={{
+                      border: '1px solid #e8e8e8',
+                      borderRadius: '6px',
+                      padding: '10px',
+                      marginBottom: '8px',
+                      backgroundColor: '#fafafa'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      {/* 左侧：订单和客人信息 */}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '6px' }}>
+                          <span style={{ 
+                            fontWeight: 'bold', 
+                            color: '#262626',
+                            fontSize: '13px'
+                          }}>
+                            {order.order_number || `ORDER-${order.id}`}
+                          </span>
+                          <span style={{ 
+                            marginLeft: '8px',
+                            color: '#666',
+                            fontSize: '12px'
+                          }}>
+                            {order.customer_name || '未知客户'}
+                          </span>
+                          <Tag 
+                            style={{ 
+                              marginLeft: '8px',
+                              fontSize: '11px',
+                              padding: '1px 6px',
+                              height: '20px'
+                            }}
+                            color="blue"
+                          >
+                            {totalPeople}人
+                          </Tag>
+                        </div>
+                        
+                        {/* 联系方式和特殊要求 */}
+                        <div style={{ fontSize: '11px', color: '#8c8c8c' }}>
+                          {order.contact_phone && (
+                            <span style={{ marginRight: '12px' }}>
+                              📞 {order.contact_phone}
+                            </span>
+                          )}
+                          {order.special_requirements && (
+                            <span>💡 {order.special_requirements}</span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* 右侧：地点信息 */}
+                      <div style={{ textAlign: 'right', minWidth: '120px' }}>
+                        <div style={{
+                          backgroundColor: getLocationColor(order.original_tour_location),
+                          color: 'white',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          marginBottom: '4px'
+                        }}>
+                          📍 {order.original_tour_location}
+                        </div>
+                        
+                        {/* 显示完整地点名称 */}
+                        <div style={{ 
+                          fontSize: '10px', 
+                          color: '#666',
+                          wordWrap: 'break-word',
+                          maxWidth: '120px'
+                        }}>
+                          {order.original_full_title?.replace('一日游', '') || order.title?.replace('一日游', '')}
+                        </div>
+                        
+                        {/* 如果是合并记录，显示合并标识 */}
+                        {order.is_from_merged && (
+                          <Tag 
+                            size="small" 
+                            color="orange" 
+                            style={{ 
+                              fontSize: '10px',
+                              marginTop: '2px',
+                              padding: '0 4px'
+                            }}
+                          >
+                            合并
+                          </Tag>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {/* 底部汇总信息 */}
+              <div style={{
+                backgroundColor: '#f0f9ff',
+                border: '1px solid #d1ecf1',
+                borderRadius: '4px',
+                padding: '8px',
+                marginTop: '8px',
+                fontSize: '12px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span><strong>总订单数：</strong>{selectedOrders.length}</span>
+                  <span><strong>总人数：</strong>{selectedOrders.reduce((sum, order) => sum + (parseInt(order.adult_count) || 0) + (parseInt(order.child_count) || 0), 0)}</span>
+                </div>
+                <div style={{ marginTop: '4px', color: '#666' }}>
+                  <strong>涉及地点：</strong>
+                  {[...new Set(selectedOrders.map(order => order.original_tour_location))].map(location => (
+                    <Tag 
+                      key={location}
+                      size="small" 
+                      style={{ 
+                        marginLeft: '4px',
+                        fontSize: '10px',
+                        backgroundColor: getLocationColor(location),
+                        color: 'white',
+                        border: 'none'
+                      }}
+                    >
+                      {location}
               </Tag>
-            ))
+                  ))}
+                </div>
+              </div>
+            </div>
           ) : (
             <div style={{ textAlign: 'center', color: '#6c757d', padding: '20px' }}>
               📝 暂无选中的订单
